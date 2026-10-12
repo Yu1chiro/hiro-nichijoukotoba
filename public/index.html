@@ -1,0 +1,343 @@
+<!doctype html> <html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#EAF3FF" />
+  <title>Nichijou Kotoba | Study Journal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { font-family: Inter, "Noto Sans JP", sans-serif; background: #f8fbff; color: #26364d; }
+    .jp { font-family: "Noto Sans JP", sans-serif; }
+    .glass { background: rgba(255, 255, 255, 0.87); backdrop-filter: blur(16px); }
+    .soft { box-shadow: 0 12px 42px rgba(81, 122, 166, 0.075); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.55rem; border-radius: 15px; padding: 12px 19px; font-weight: 700; transition: 0.18s; }
+    .btn:active { transform: scale(0.98); }
+    .btn-main { background: #537ebd; color: white; }
+    .btn-main:hover { background: #406ca9; }
+    .btn-lite { background: #eaf3ff; color: #385981; }
+    .btn-outline { border: 1px solid #d4e1f0; background: white; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .pill { border-radius: 999px; background: #edf4fc; padding: 9px 15px; font-size: 0.8rem; font-weight: 650; }
+    .pill.active { background: #537ebd; color: white; }
+    .panel { border: 1px solid #e3ebf4; border-radius: 24px; background: #fff; }
+    .inp { width: 100%; background: #fff; border: 1px solid #d8e4f2; border-radius: 15px; padding: 12px 14px; outline: none; }
+    .inp:focus { border-color: #7da8dd; box-shadow: 0 0 0 3px #eaf3ff; }
+    .navlink { display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left; padding: 12px 15px; border-radius: 13px; font-weight: 600; color: #586e88; }
+    .navlink:hover, .navlink.active { background: #eaf3ff; color: #3e6ca7; }
+    #toast { z-index: 99; transition: opacity 0.2s; }
+    .hidden-section { display: none !important; }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div id="overlay" class="fixed inset-0 bg-[#203247]/40 z-40 hidden lg:hidden" onclick="menu(false)"></div>
+  <aside id="sidebar" class="fixed z-50 lg:z-20 top-0 left-0 w-72 h-full bg-white border-r border-[#E2EAF3] p-6 -translate-x-full lg:translate-x-0 transition-transform duration-200">
+    <div class="flex items-center gap-3 mb-10">
+      <div class="w-11 h-11 bg-[#EAF3FF] text-[#537EBD] grid place-items-center rounded-2xl text-xl"><i class="fa-solid fa-book-open"></i></div>
+      <div><strong class="block">Nichijou Kotoba</strong><span class="text-xs text-slate-400">日常言葉</span></div>
+    </div>
+    <nav class="space-y-1" aria-label="Navigasi utama">
+      <button class="navlink active" data-nav="home" onclick="show('home')">
+        <span><i class="fa-solid fa-house w-7"></i> Home</span>
+      </button>
+      <button class="navlink" data-nav="review" onclick="show('review')">
+        <span><i class="fa-solid fa-rotate w-7"></i> Daily Review</span>
+        <span id="navDueCount" class="hidden bg-[#C45F6E] text-white text-[10px] font-black px-2 py-0.5 rounded-full">0</span>
+      </button>
+      <button class="navlink" data-nav="shadow" onclick="show('shadow')">
+        <span><i class="fa-solid fa-book w-7"></i> Kotoba Read</span>
+      </button>
+      <a class="navlink" href="/dashboard">
+        <span><i class="fa-solid fa-layer-group w-7"></i> Dashboard</span>
+      </a>
+    </nav>
+    <div class="mt-10 p-4 rounded-2xl bg-[#F2F7FF] text-sm text-[#61758F]">
+      <b>KAIZEN</b><br />Belajar sedikit, konsisten setiap hari.
+    </div>
+  </aside>
+  <main class="lg:ml-72 min-h-screen pb-24">
+    <header class="glass sticky top-0 z-30 border-b border-[#E2EBF5] px-5 sm:px-9 h-[76px] flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <button class="lg:hidden w-10 h-10 rounded-xl bg-[#EAF3FF]" aria-label="Buka menu" onclick="menu(true)"><i class="fa-solid fa-bars"></i></button>
+        <span id="pageName" class="font-bold text-lg">Your Study Space</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="hidden sm:block text-xs text-slate-400">Personal Japanese Learning</span>
+        <div class="w-10 h-10 rounded-full bg-[#F3DCE9] grid place-items-center text-[#8C6D89]"><i class="fa-solid fa-seedling"></i></div>
+      </div>
+    </header>
+    <div class="max-w-6xl mx-auto px-5 sm:px-9 py-8 space-y-8">
+      <section id="screen-home" class="space-y-7">
+        <div class="rounded-[28px] p-7 md:p-9 soft bg-gradient-to-br from-[#E7F2FF] via-[#F5F9FF] to-[#FCEEF6]">
+          <span class="text-xs font-bold tracking-widest text-[#6B91BA]">WELCOME BACK</span>
+          <h1 class="jp text-3xl md:text-4xl font-bold mt-3">お帰りなさい</h1>
+          <p class="text-[#687C94] mt-2">Belajar kosakata yang benar-benar bisa kamu gunakan.</p>
+          <div class="grid grid-cols-3 gap-3 mt-7 max-w-xl">
+            <div class="bg-white/75 rounded-2xl p-3 md:p-4"><b class="text-xl md:text-2xl" id="statCards">0</b><div class="text-xs text-slate-500">Kotoba</div></div>
+            <div class="bg-white/75 rounded-2xl p-3 md:p-4"><b class="text-xl md:text-2xl" id="statMastered">0</b><div class="text-xs text-slate-500">Mastered</div></div>
+            <div class="bg-white/75 rounded-2xl p-3 md:p-4"><b class="text-xl md:text-2xl" id="statDue">0</b><div class="text-xs text-slate-500">Due Review</div></div>
+          </div>
+        </div>
+        
+        <div id="homeChart" class="mt-8 bg-white p-5 rounded-[24px] soft border border-[#E3EBF4]"></div>
+
+        <div class="flex flex-wrap items-end justify-between gap-4 mt-8">
+          <div>
+            <h2 class="text-xl font-extrabold">Your Learning Days</h2>
+            <p class="text-sm text-[#8493A8] mt-1">Pilih deck, kemudian mulai dari Day yang kamu inginkan.</p>
+          </div>
+          <div class="flex gap-2 items-center">
+            <label for="size" class="text-sm text-slate-500">Kartu / sesi</label>
+            <select id="size" class="inp !w-auto" aria-label="Jumlah flashcard"><option>5</option><option selected>10</option><option>15</option></select>
+          </div>
+        </div>
+        <div id="deckChips" class="flex flex-wrap gap-2"><span class="text-slate-400">Memuat deck...</span></div>
+        <div id="days" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+      </section>
+      
+      <section id="screen-study" class="hidden-section space-y-5 max-w-3xl mx-auto">
+        <div class="flex justify-between gap-3 items-center">
+          <button onclick="show('home')" class="btn btn-lite"><i class="fa-solid fa-arrow-left"></i> Kembali</button>
+          <span class="text-sm text-slate-500" id="studyCount">0 / 10</span>
+        </div>
+        <div class="w-full rounded-full bg-[#E5EDF7] h-2 overflow-hidden"><div id="studyBar" class="h-full bg-[#89AED9] transition-all" style="width: 0%"></div></div>
+        <div class="panel soft p-8 sm:p-12 min-h-[340px] flex flex-col items-center justify-center text-center gap-4">
+          <p id="studyDeck" class="uppercase tracking-wider text-xs font-bold text-[#89AED9]">STUDY MODE</p>
+          <div id="studyKanji" class="jp text-4xl sm:text-6xl font-bold leading-relaxed break-all"></div>
+          <div id="revealed" class="hidden space-y-2">
+            <div class="jp text-[#6D8DAD] text-xl" id="studyFuri"></div>
+            <div class="text-xl font-semibold" id="studyArti"></div>
+            <p id="studyExample" class="jp text-sm text-slate-500"></p>
+            <p id="studyTrans" class="text-sm text-slate-400"></p>
+            <p id="studyNotes" class="text-xs text-slate-500"></p>
+            <a id="studySource" target="_blank" rel="noopener noreferrer" class="text-sm text-blue-600 underline hidden"><i class="fa-solid fa-headphones"></i> Dengarkan sumber</a>
+          </div>
+          <p id="studyHint" class="text-[#99A8BC] text-sm">Ingat arti dan bacaannya sebelum menampilkan jawaban.</p>
+        </div>
+        <button id="revealBtn" class="btn btn-main w-full !py-4" onclick="reveal()"><i class="fa-solid fa-eye"></i> Tampilkan Jawaban</button>
+        <div id="ratingButtons" class="hidden grid grid-cols-3 gap-3">
+          <button class="btn !px-1 bg-[#FBE8E8] text-[#A65767]" onclick="rate('again')">Lupa</button>
+          <button class="btn !px-1 bg-[#FFF1D8] text-[#9E7633]" onclick="rate('hard')">Ragu</button>
+          <button class="btn !px-1 bg-[#DFF4ED] text-[#307E67]" onclick="rate('good')">Ingat</button>
+        </div>
+        <button id="toQuiz" class="btn btn-main w-full !py-4 hidden" onclick="startQuiz()"><i class="fa-solid fa-arrow-right"></i> Mulai Quiz</button>
+      </section>
+      
+      <section id="screen-review" class="hidden-section space-y-6">
+        <div>
+          <h2 class="text-2xl font-extrabold">Daily Review</h2>
+          <p class="text-sm text-slate-500 mt-2">Review hanya muncul jika suatu kosakata telah mencapai jadwal pengulangan.</p>
+        </div>
+        <div class="panel p-6">
+          <p class="text-sm text-slate-400">Kosakata menunggu review</p>
+          <div id="dueCount" class="font-black text-4xl mt-1">0</div>
+          <div id="reviewList" class="space-y-2 my-5"></div>
+          <button id="reviewStart" class="btn btn-main" onclick="beginStudy(true)" disabled>Mulai Review Deck Terpilih</button>
+          <p class="text-xs text-slate-400 mt-3">Deck yang digunakan mengikuti pilihan pada halaman Home.</p>
+        </div>
+      </section>
+      
+      <section id="screen-shadow" class="hidden-section space-y-5">
+        <div>
+          <h2 class="text-2xl font-extrabold">Kotoba Read</h2>
+          <p class="text-sm text-slate-500 mt-2">Kotoba sesuai konteks</p>
+        </div>
+        <div class="panel p-5 bg-gradient-to-r from-white to-[#F2F8FF]">
+          <p class="text-sm">Baca teks dengan memperhatikan konteks dan makna kosakata.</p>
+        </div>
+        <div id="shadowList" class="grid md:grid-cols-2 gap-3 mt-4"></div>
+      </section>
+    </div>
+  </main>
+  <div id="toast" role="status" class="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-2xl bg-[#26364D] text-white text-sm px-5 py-3 opacity-0 pointer-events-none">Notifikasi</div>
+  
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const state = { decks: [], deckId: null, days: [], session: null, cards: [], position: 0, revealed: false, busy: false };
+
+    // Metode escape murni tanpa menggunakan Regex sedikitpun.
+    function escapeHtml(x) { 
+      return String(x ?? "")
+        .split("&").join("&amp;")
+        .split("<").join("&lt;")
+        .split(">").join("&gt;")
+        .split('"').join("&quot;")
+        .split("'").join("&#39;"); 
+    }
+    
+    function notify(msg) { $("toast").textContent = msg; $("toast").style.opacity = "1"; clearTimeout(window.toastTimeout); window.toastTimeout = setTimeout(() => ($("toast").style.opacity = "0"), 3400); }
+    async function api(url, options = {}) {
+      const r = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
+      const v = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(v.error || "Gagal menghubungi server.");
+      return v;
+    }
+    
+    function menu(open) { $("sidebar").classList.toggle("-translate-x-full", !open); $("overlay").classList.toggle("hidden", !open); }
+    function show(section) {
+      document.querySelectorAll('[id^="screen-"]').forEach((el) => el.classList.toggle("hidden-section", el.id !== "screen-" + section));
+      document.querySelectorAll("[data-nav]").forEach((el) => el.classList.toggle("active", el.dataset.nav === section));
+      $("pageName").textContent = { home: "Your Study Space", study: "Flashcard Study", review: "Daily Review", shadow: "Kotoba Read" }[section];
+      menu(false); window.scrollTo({ top: 0, behavior: "smooth" });
+      if (section === "review") loadReview();
+      if (section === "shadow") loadShadow();
+    }
+    
+    async function boot() {
+      try {
+        const [d, stats] = await Promise.all([api("/api/decks"), api("/api/stats/overview")]);
+        state.decks = d.data; state.deckId = state.decks[0]?.id || null;
+        $("statCards").textContent = stats.cards;
+        $("statMastered").textContent = stats.mastered;
+        $("statDue").textContent = stats.due;
+        
+        if (stats.due > 0) {
+          $("navDueCount").textContent = stats.due;
+          $("navDueCount").classList.remove("hidden");
+        }
+        
+        if(window.homeChartIns) window.homeChartIns.destroy();
+        window.homeChartIns = new ApexCharts(document.getElementById("homeChart"), {
+           series: [{ name: 'Progress', data: [stats.cards, stats.mastered, stats.due] }],
+           chart: { type: 'bar', height: 260, toolbar: { show: false } },
+           colors: ['#89AED9', '#369374', '#C45F6E'],
+           plotOptions: { bar: { distributed: true, borderRadius: 6, horizontal: true } },
+           xaxis: { categories: ['Total Cards', 'Mastered', 'Due Review'] },
+           dataLabels: { enabled: false }
+        });
+        window.homeChartIns.render();
+
+        renderDecks(); await loadDays();
+      } catch (e) { notify(e.message); $("days").innerHTML = '<p class="text-red-500">Tidak dapat memuat data. Periksa koneksi.</p>'; }
+    }
+    
+    function renderDecks() {
+      $("deckChips").innerHTML = state.decks.length ? state.decks.map((d) => `<button onclick="pickDeck(${d.id})" class="pill ${String(d.id) === String(state.deckId) ? "active" : ""}">${escapeHtml(d.name)} <span class="opacity-60">${d.card_count}</span></button>`).join("") : '<div class="panel p-6 w-full text-sm text-slate-500">Belum ada deck.</div>';
+    }
+    async function pickDeck(id) { state.deckId = id; renderDecks(); await loadDays(); }
+    async function loadDays() {
+      if (!state.deckId) { $("days").innerHTML = ""; return; }
+      try {
+        const response = await api(`/api/decks/${state.deckId}/days`);
+        state.days = response.data;
+        const extra = `<div class="panel p-5"><div class="w-11 h-11 bg-[#EAF3FF] text-[#537EBD] rounded-xl grid place-items-center"><i class="fa-solid fa-layer-group"></i></div><h3 class="font-bold mt-4">All Cards</h3><p class="text-slate-500 text-sm mt-2">Mulai belajar tanpa filter Day.</p><button onclick="beginStudy(false,null)" class="btn btn-lite mt-4 w-full">Start Learning <i class="fa-solid fa-arrow-right"></i></button></div>`;
+        $("days").innerHTML = state.days.map((d) => {
+          const isDone = d.studied_count > 0 && d.studied_count >= d.card_count;
+          const doneBadge = isDone ? `<span class="bg-[#DFF4ED] text-[#307E67] text-[10px] uppercase font-black px-2 py-1 rounded-full ml-2">Done</span>` : '';
+          return `<div class="panel p-5 soft hover:border-[#ABC8EA] transition"><div class="flex items-center justify-between"><span class="text-[#8EADD0] font-black text-2xl">Day ${String(d.day_number).padStart(2, "0")}</span><i class="fa-regular fa-calendar text-[#A2B8CF]"></i></div><h3 class="font-bold mt-3 flex items-center">${escapeHtml(d.title || "Vocabulary Session")} ${doneBadge}</h3><p class="text-slate-500 text-sm mt-2">${d.card_count} kotoba</p><button ${d.card_count ? "" : "disabled"} onclick="beginStudy(false,${d.id})" class="btn btn-lite mt-4 w-full">Start Learning <i class="fa-solid fa-arrow-right"></i></button></div>`;
+        }).join("") + extra;
+      } catch (e) { notify(e.message); }
+    }
+    
+    async function beginStudy(review = false, dayId = null) {
+      if (!state.deckId) return notify("Pilih deck terlebih dahulu.");
+      try {
+        const result = await api("/api/study-sessions", { method: "POST", body: JSON.stringify({ deckId: state.deckId, dayId, mode: review ? "review" : "new", limit: Number($("size").value) }) });
+        state.session = result.sessionId;
+        const session = await api(`/api/study-sessions/${state.session}`);
+        state.cards = session.cards; state.position = 0;
+        show("study"); renderStudy();
+      } catch (e) { notify(e.message); }
+    }
+    
+    function renderStudy() {
+      const card = state.cards[state.position];
+      $("studyCount").textContent = card ? `${state.position + 1} / ${state.cards.length}` : `${state.cards.length} / ${state.cards.length}`;
+      $("studyBar").style.width = `${Math.round((state.position / state.cards.length) * 100)}%`;
+      $("toQuiz").classList.toggle("hidden", !!card);
+      $("revealBtn").classList.toggle("hidden", !card);
+      $("ratingButtons").classList.add("hidden"); $("revealed").classList.add("hidden");
+      $("studyHint").classList.toggle("hidden", !card);
+      if (!card) { $("studyKanji").textContent = "お疲れ様でした"; $("studyDeck").textContent = "SEMUA KARTU SELESAI"; $("studyBar").style.width = "100%"; return; }
+      state.revealed = false;
+      $("studyDeck").textContent = "REMEMBER FIRST > THEN REVEAL"; $("studyKanji").textContent = card.kanji;
+      $("studyFuri").textContent = card.furigana; $("studyArti").textContent = card.arti;
+      $("studyExample").textContent = card.example_sentence || ""; $("studyTrans").textContent = card.sentence_translation || ""; $("studyNotes").textContent = card.notes || "";
+      const link = $("studySource"); link.classList.toggle("hidden", !(card.source_url || card.audio_url));
+      if (card.source_url || card.audio_url) {
+        let href = card.source_url || card.audio_url;
+        if (card.timestamp_sec) { try { const u = new URL(href); if (u.hostname.includes("youtube.com") || u.hostname === "youtu.be") u.searchParams.set("t", String(card.timestamp_sec)); href = u.toString(); } catch {} }
+        link.href = href;
+      }
+    }
+    
+    function reveal() {
+      if (!state.cards[state.position]) return;
+      state.revealed = true; $("revealed").classList.remove("hidden"); $("studyHint").classList.add("hidden");
+      $("revealBtn").classList.add("hidden"); $("ratingButtons").classList.remove("hidden");
+    }
+    async function rate(rating) {
+      const c = state.cards[state.position]; if (!c || state.busy) return; state.busy = true;
+      try {
+        await api(`/api/study-sessions/${state.session}/rate`, { method: "POST", body: JSON.stringify({ cardId: c.id, rating }) });
+        state.position++; renderStudy(); if (state.position >= state.cards.length) await startQuiz();
+      } catch (e) { notify(e.message); } finally { state.busy = false; }
+    }
+    async function startQuiz() {
+      try { await api(`/api/study-sessions/${state.session}/finish`, { method: "POST", body: "{}" }); location.href = "/quiz?session=" + encodeURIComponent(state.session); } catch (e) { notify(e.message); }
+    }
+    
+    async function loadReview() {
+      if (!state.deckId) { $("dueCount").textContent = "0"; return; }
+      try {
+        const d = await api("/api/reviews/due?deckId=" + state.deckId);
+        $("dueCount").textContent = d.data.length; $("reviewStart").disabled = !d.data.length;
+        $("reviewList").innerHTML = d.data.length ? d.data.slice(0, 12).map((c) => `<div class="bg-[#F6FAFF] rounded-xl p-3 flex justify-between gap-3"><b class="jp">${escapeHtml(c.kanji)}</b><span class="text-slate-500 text-sm">${escapeHtml(c.arti)}</span></div>`).join("") : '<p class="text-sm text-slate-400">Belum ada kosakata yang jatuh tempo untuk deck ini.</p>';
+      } catch (e) { notify(e.message); }
+    }
+    
+    function audioSpeed(button, speed) {
+      const audio = button.closest(".audio-box")?.querySelector("audio"); if (!audio) return;
+      audio.playbackRate = speed; button.parentElement.querySelectorAll("button").forEach((x) => x.classList.remove("active")); button.classList.add("active");
+    }
+    
+    async function loadShadow() {
+      if (!state.deckId) { $("shadowList").innerHTML = "Pilih deck."; return; }
+      try {
+        // Fetch murni dari API normal, difilter mandiri untuk keamanan tanpa Regex
+        const r = await api(`/api/flashcards?deckId=${state.deckId}&limit=100`);
+        const cards = r.data.filter((c) => c.source_url || c.audio_url || c.example_sentence);
+        
+        $("shadowList").innerHTML = cards.length ? cards.map((c) => `
+          <div class="panel p-6 shadow-sm hover:shadow-md transition bg-white space-y-2">
+            <div class="flex gap-2 items-start">
+              <div class="w-28 shrink-0 text-sm font-bold text-[#61758F] mt-1">kotoba :</div>
+              <div class="jp font-bold text-2xl text-[#26364D] flex-1">${escapeHtml(c.kanji)}</div>
+            </div>
+            <div class="flex gap-2 items-start">
+              <div class="w-28 shrink-0 text-sm font-bold text-[#61758F]">furigana :</div>
+              <div class="jp text-[#537EBD] flex-1">${escapeHtml(c.furigana)}</div>
+            </div>
+            ${c.example_sentence ? `
+            <div class="flex gap-2 items-start mt-2">
+              <div class="w-28 shrink-0 text-sm font-bold text-[#61758F] mt-2">Contoh:</div>
+              <div class="jp bg-[#F4F8FC] rounded-lg p-2 text-sm text-[#26364D] flex-1">${escapeHtml(c.example_sentence)}</div>
+            </div>` : ""}
+            ${c.sentence_translation ? `
+            <div class="flex gap-2 items-start mt-1">
+              <div class="w-28 shrink-0 text-sm font-bold text-[#61758F]">Terjemahan:</div>
+              <div class="text-sm text-[#3A506B] flex-1">${escapeHtml(c.sentence_translation)}</div>
+            </div>` : ""}
+            ${c.notes ? `
+            <div class="flex gap-2 items-start mt-1">
+              <div class="w-28 shrink-0 text-sm font-bold text-[#61758F]">Catatan:</div>
+              <div class="text-sm text-[#3A506B] flex-1">${escapeHtml(c.notes)}</div>
+            </div>` : ""}
+            
+            <div class="pt-4 mt-3 border-t border-[#E3EBF4]">
+              <p class="text-xs text-slate-400 mb-3">Sumber: ${escapeHtml(c.source_title || "Sumber mandiri")}</p>
+              ${c.audio_url ? `<div class="audio-box space-y-2"><audio controls preload="none" class="w-full h-9 rounded-full bg-slate-50" src="${escapeHtml(c.audio_url)}"></audio><div class="flex gap-2"><button class="pill" onclick="audioSpeed(this,0.75)">0.75x</button><button class="pill active" onclick="audioSpeed(this,1)">1x</button></div></div>` : ""}
+              ${c.source_url ? `<a href="${escapeHtml(c.source_url)}" target="_blank" rel="noopener noreferrer" class="btn btn-lite text-sm mt-3 w-full"><i class="fa-solid fa-link"></i> Buka Sumber URL</a>` : ""}
+            </div>
+          </div>`).join("") : '<div class="panel p-5 text-slate-500">Belum ada data shadowing untuk deck ini.</div>';
+      } catch (e) { notify(e.message); }
+    }
+    boot();
+  </script>
+</body>
+</html>

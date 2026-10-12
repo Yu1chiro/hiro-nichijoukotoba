@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#EAF3FF" />
+    <title>Login — Nichijou Kotoba</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+    />
+    <style>
+      body {
+        font-family: Inter, "Noto Sans JP", sans-serif;
+        background: #f8fbff;
+        color: #26364d;
+      }
+      .inp {
+        width: 100%;
+        border: 1px solid #d8e4f2;
+        border-radius: 15px;
+        padding: 14px;
+        outline: none;
+      }
+      .inp:focus {
+        border-color: #7da8dd;
+        box-shadow: 0 0 0 3px #eaf3ff;
+      }
+      .btn {
+        width: 100%;
+        background: #537ebd;
+        color: white;
+        font-weight: 700;
+        border-radius: 15px;
+        padding: 14px;
+      }
+      .btn:disabled {
+        opacity: 0.6;
+      }
+    </style>
+  </head>
+  <body
+    class="min-h-screen grid place-items-center px-5 py-10 bg-gradient-to-br from-[#E8F2FF] via-[#F8FBFF] to-[#FBEFFA]"
+  >
+    <div class="w-full max-w-md">
+      <a href="/" class="text-sm text-[#7090B3] font-bold"
+        ><i class="fa-solid fa-arrow-left mr-2"></i>Kembali ke Home</a
+      >
+      <div
+        class="bg-white border border-[#E5EDF6] shadow-xl shadow-blue-100/30 rounded-[28px] p-7 sm:p-10 mt-7"
+      >
+        <div
+          class="w-14 h-14 rounded-2xl bg-[#EAF3FF] text-[#537EBD] grid place-items-center text-xl"
+        >
+          <i class="fa-solid fa-lock"></i>
+        </div>
+        <p class="text-xs font-bold text-[#91AAC5] tracking-wider mt-6">
+          Welcome Hiro👋
+        </p>
+        <h1 class="font-extrabold text-3xl mt-2">Welcome Back</h1>
+        <p class="text-slate-500 text-sm mt-3">
+         Type Your PIN
+        </p>
+        <form id="form" class="mt-8 space-y-4">
+          <label for="pin" class="block text-sm font-bold"
+            >PIN</label
+          >
+          <div class="relative">
+            <input
+              id="pin"
+              type="password"
+              minlength="6"
+              autocomplete="current-password"
+              class="inp pr-14"
+              placeholder="••••••••"
+              required
+            /><button
+              type="button"
+              aria-label="Tampilkan PIN"
+              class="absolute right-4 top-4 text-slate-400"
+              id="toggle"
+            >
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+          <p id="error" class="text-red-500 text-sm min-h-5" role="alert"></p>
+          <button id="submit" class="btn" type="submit">
+            SIGNIN <i class="fa-solid fa-arrow-right ml-2"></i>
+          </button>
+        </form>
+        <p class="text-xs text-slate-400 text-center mt-7">
+          Protected by server-side verification and secure session cookie.
+        </p>
+      </div>
+    </div>
+    <script>
+      const pin = document.getElementById("pin"),
+        error = document.getElementById("error"),
+        button = document.getElementById("submit");
+      document.getElementById("toggle").onclick = () => {
+        pin.type = pin.type === "password" ? "text" : "password";
+      };
+      document.getElementById("form").onsubmit = async (e) => {
+        e.preventDefault();
+        error.textContent = "";
+        button.disabled = true;
+        try {
+          const r = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pin: pin.value }),
+          });
+          const data = await r.json();
+          if (!r.ok) throw Error(data.error || "Login gagal.");
+          location.replace("/dashboard");
+        } catch (e) {
+          error.textContent = e.message;
+        } finally {
+          button.disabled = false;
+        }
+      };
+      fetch("/api/auth/me")
+        .then((r) => {
+          if (r.ok) location.replace("/dashboard");
+        })
+        .catch(() => {});
+    </script>
+  </body>
+</html>

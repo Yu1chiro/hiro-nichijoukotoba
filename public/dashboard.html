@@ -1,0 +1,448 @@
+<!doctype html> <html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#EAF3FF" />
+  <title>Dashboard | Nichijou Kotoba</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
+  <style>
+    body { background: #f8fbff; color: #26364d; font-family: Inter, "Noto Sans JP", sans-serif; }
+    .jp { font-family: "Noto Sans JP", sans-serif; }
+    .panel { background: white; border: 1px solid #e3ebf4; border-radius: 22px; }
+    .inp { padding: 11px 13px; border-radius: 13px; border: 1px solid #d9e5f1; background: white; width: 100%; outline: none; }
+    .inp:focus { border-color: #7ca5d7; box-shadow: 0 0 0 3px #eaf3ff; }
+    .btn { display: inline-flex; justify-content: center; align-items: center; gap: 8px; padding: 11px 16px; border-radius: 13px; background: #537ebd; color: white; font-weight: 700; font-size: 0.875rem; }
+    .btn:hover { background: #406ca9; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-secondary { background: #eaf3ff; color: #426c9d; }
+    .btn-secondary:hover { background: #dcebf9; }
+    .btn-danger { background: #fdebeb; color: #a75261; }
+    .btn-danger:hover { background: #fadede; }
+    .nav { display: block; text-align: left; width: 100%; padding: 13px; border-radius: 13px; font-weight: 700; color: #657a91; }
+    .nav.active, .nav:hover { background: #eaf3ff; color: #3d6ea7; }
+    .label { font-size: 0.78rem; font-weight: 750; color: #61758e; display: block; margin-bottom: 6px; }
+    .table-wrap { overflow-x: auto; }
+    th { font-size: 0.75rem; text-align: left; letter-spacing: 0.04em; color: #8599b1; text-transform: uppercase; background: #f6f9fd; }
+    th, td { padding: 15px; border-bottom: 1px solid #edf2f7; white-space: nowrap; }
+    td { font-size: 0.875rem; }
+    .section { display: none; }
+    .section.active { display: block; }
+    #overlay { display: none; }
+    #overlay.open { display: block; }
+    #sidebar.open { transform: translateX(0); }
+    #toast { transition: opacity 0.2s; }
+    .soft { box-shadow: 0 12px 36px rgba(81, 122, 166, 0.06); }
+    @media (min-width: 1024px) { #sidebar { transform: translateX(0) !important; } }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div id="overlay" onclick="toggleMenu(false)" class="fixed inset-0 bg-[#203247]/40 z-40 lg:hidden"></div>
+  <aside id="sidebar" class="fixed z-50 top-0 left-0 h-full w-72 bg-white p-6 border-r border-[#E1EAF5] -translate-x-full transition-transform duration-200">
+    <a href="/" class="flex items-center gap-3 mb-9">
+      <span class="bg-[#EAF3FF] text-[#537EBD] rounded-xl w-11 h-11 grid place-items-center"><i class="fa-solid fa-book-open"></i></span>
+      <span><strong class="block">Nichijou Kotoba</strong><small class="text-slate-400">Admin Workspace</small></span>
+    </a>
+    <nav class="space-y-1">
+      <button data-nav="overview" class="nav active" onclick="showTab('overview')"><i class="fa-solid fa-chart-pie w-7"></i> Overview</button>
+      <button data-nav="decks" class="nav" onclick="showTab('decks')"><i class="fa-solid fa-layer-group w-7"></i> Deck & Day</button>
+      <button data-nav="cards" class="nav" onclick="showTab('cards')"><i class="fa-solid fa-table-list w-7"></i> Flashcards</button>
+      <button data-nav="shadowing" class="nav" onclick="showTab('shadowing')"><i class="fa-solid fa-book w-7"></i> Kotoba Read</button>
+      <button data-nav="import" class="nav" onclick="showTab('import')"><i class="fa-solid fa-file-import w-7"></i> Import / Export</button>
+    </nav>
+    <div class="mt-10 space-y-2">
+      <a href="/" class="nav"><i class="fa-solid fa-arrow-left w-7"></i> Back to Study</a>
+      <button onclick="logout()" class="nav text-[#AA6171]"><i class="fa-solid fa-right-from-bracket w-7"></i> Logout</button>
+    </div>
+  </aside>
+  <main class="lg:ml-72 min-h-screen pb-16">
+    <header class="h-[76px] sticky top-0 bg-white/90 backdrop-blur-md border-b border-[#E3EBF4] flex items-center justify-between px-5 md:px-9 z-20">
+      <div class="flex gap-3 items-center">
+        <button class="lg:hidden w-10 h-10 rounded-xl bg-[#EAF3FF]" onclick="toggleMenu(true)"><i class="fa-solid fa-bars"></i></button>
+        <h1 id="headerTitle" class="text-lg font-extrabold">Overview</h1>
+      </div>
+      <div class="text-xs text-slate-400"><i class="fa-solid fa-lock text-[#7AA5D1]"></i> PIN Protected</div>
+    </header>
+    <div class="px-5 md:px-9 py-8 max-w-7xl mx-auto">
+      <section id="tab-overview" class="section active space-y-6">
+        <div>
+          <h2 class="text-2xl font-extrabold">Your Workspace</h2>
+          <p class="text-slate-500 text-sm mt-2">Kelola kosakata dan pantau perkembangan belajarmu.</p>
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" id="overviewStats"><div class="panel p-5">Loading...</div></div>
+        <div id="overviewStatsChart" class="panel p-5 mt-5"></div>
+        <div class="panel p-6 bg-gradient-to-r from-white to-[#F2F7FF]">
+          <h3 class="font-bold text-xl mb-2">Learning Workflow</h3>
+          <p class="text-sm text-slate-500">Buat Deck > Tambah Day > Buat atau Import Flashcard > Study Mode > Quiz > Daily Review.</p>
+          <div class="flex flex-wrap gap-2 mt-5">
+            <button class="btn" onclick="showTab('cards'); openCardForm();"><i class="fa-solid fa-plus"></i> New Flashcard</button>
+            <button class="btn btn-secondary" onclick="showTab('import')"><i class="fa-solid fa-file-import"></i> Import JSON</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-decks" class="section space-y-6">
+        <div class="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <h2 class="text-2xl font-extrabold">Deck & Day Manager</h2>
+            <p class="text-slate-500 text-sm mt-1">Organisasi materi secara fleksibel.</p>
+          </div>
+          <button class="btn" onclick="openDeckForm()"><i class="fa-solid fa-plus"></i> Create Deck</button>
+        </div>
+        <div id="deckList" class="grid md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+        <div class="panel p-5 md:p-7 space-y-4">
+          <h3 class="font-bold text-lg">Day Management</h3>
+          <div class="grid md:grid-cols-3 gap-3">
+            <div><label class="label">Deck tujuan</label><select id="dayDeck" class="inp" onchange="loadDayManager()"></select></div>
+            <div><label class="label">Nomor Day</label><input id="dayNumber" class="inp" type="number" min="1" placeholder="1" /></div>
+            <div><label class="label">Judul Day</label><input id="dayTitle" class="inp" placeholder="Daily Conversation" /></div>
+          </div>
+          <button class="btn" onclick="createDay()"><i class="fa-solid fa-plus"></i> Tambah Day</button>
+          <div id="dayList" class="space-y-3"></div>
+        </div>
+      </section>
+
+      <section id="tab-cards" class="section space-y-6">
+        <div class="flex flex-wrap gap-3 justify-between items-end">
+          <div>
+            <h2 class="text-2xl font-extrabold">Flashcard Manager</h2>
+            <p class="text-slate-500 text-sm mt-1">Semua kotoba tersimpan di PostgreSQL.</p>
+          </div>
+          <button class="btn" onclick="openCardForm()"><i class="fa-solid fa-plus"></i> New Flashcard</button>
+        </div>
+        <div class="panel p-4 space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div><label class="label">Search</label><input class="inp" id="cardSearch" placeholder="Kanji, furigana, arti..." oninput="debouncedCards()" /></div>
+            <div><label class="label">Deck</label><select class="inp" id="cardDeckFilter" onchange="loadCards(1)"><option value="">All Decks</option></select></div>
+            <div><label class="label">Status</label><select class="inp" id="archivedFilter" onchange="loadCards(1)"><option value="false">Aktif</option><option value="true">Arsip</option></select></div>
+          </div>
+          <div class="table-wrap">
+            <table class="w-full">
+              <thead><tr><th>Kotoba / Kanji</th><th>Furigana</th><th>Arti</th><th>Deck</th><th>Actions</th></tr></thead>
+              <tbody id="cardRows"><tr><td colspan="5">Loading...</td></tr></tbody>
+            </table>
+          </div>
+          <div class="flex justify-between items-center gap-3 text-sm">
+            <span class="text-slate-500" id="cardPageInfo">0 item</span>
+            <div class="flex gap-2">
+              <button id="prevPage" class="btn btn-secondary" onclick="loadCards(state.page - 1)"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+              <button id="nextPage" class="btn btn-secondary" onclick="loadCards(state.page + 1)">Next <i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      <section id="tab-shadowing" class="section space-y-6">
+        <div class="flex flex-wrap gap-3 justify-between items-end">
+          <div>
+            <h2 class="text-2xl font-extrabold">Kotoba Read</h2>
+            <p class="text-slate-500 text-sm mt-1">Menampilkan flashcard dengan konteks dan makna kosakata.</p>
+          </div>
+        </div>
+        <div class="panel p-4 space-y-4">
+          <div class="table-wrap">
+            <table class="w-full">
+              <thead><tr><th>Kotoba</th><th>Furigana</th><th>Resources</th><th>Deck</th><th>Actions</th></tr></thead>
+              <tbody id="shadowingRows"><tr><td colspan="5">Loading...</td></tr></tbody>
+            </table>
+          </div>
+          <div class="flex justify-between items-center gap-3 text-sm">
+            <span class="text-slate-500" id="shadowingPageInfo">Memuat data...</span>
+            <div class="flex gap-2">
+              <button class="btn btn-secondary" disabled>Melihat Data Filter Teratas</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-import" class="section space-y-6">
+        <div>
+          <h2 class="text-2xl font-extrabold">Import / Export JSON</h2>
+          <p class="text-slate-500 text-sm mt-2">Paste JSON atau upload file, validasi dahulu sebelum disimpan.</p>
+        </div>
+        <div class="panel p-5 md:p-7 space-y-4">
+          <div class="grid md:grid-cols-2 gap-3">
+            <div><label class="label">Deck tujuan</label><select id="importDeck" class="inp" onchange="loadImportDays()"></select></div>
+            <div><label class="label">Day (opsional)</label><select id="importDay" class="inp"><option value="">Tanpa Day</option></select></div>
+          </div>
+          <div><label class="label">Upload file .json</label><input type="file" accept=".json,application/json" class="inp" id="jsonFile" /></div>
+          <div><label class="label">Atau paste JSON</label><textarea id="jsonInput" rows="11" class="inp font-mono !text-sm" spellcheck="false" placeholder='[{"kanji":" ","furigana":" ","arti":"Kepercayaan"}]'></textarea></div>
+          <div class="flex flex-wrap gap-3">
+            <button class="btn btn-secondary" onclick="previewImport()"><i class="fa-solid fa-magnifying-glass"></i> Validate & Preview</button>
+            <button id="commitBtn" class="btn" onclick="commitImport()" disabled><i class="fa-solid fa-database"></i> Commit Import</button>
+          </div>
+          <div id="importPreview" class="text-sm text-slate-500"></div>
+        </div>
+        <div class="panel p-5 md:p-7 space-y-3">
+          <h3 class="font-bold text-lg">Backup / Export</h3>
+          <button class="btn btn-secondary" onclick="exportJSON()"><i class="fa-solid fa-download"></i> Export Deck Terpilih</button>
+        </div>
+      </section>
+    </div>
+  </main>
+  
+  <div id="modal" class="fixed inset-0 z-[60] bg-[#26364D]/45 hidden items-center justify-center p-3 sm:p-6" role="dialog">
+    <div class="bg-white w-full max-w-2xl max-h-[92vh] rounded-[24px] shadow-xl flex flex-col">
+      <div class="flex items-center justify-between px-6 py-5 border-b">
+        <h2 id="modalTitle" class="text-lg font-extrabold">Edit</h2>
+        <button onclick="closeModal()" class="w-9 h-9 rounded-xl bg-[#F0F5FA]"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="modalContent" class="p-6 overflow-y-auto"></div>
+    </div>
+  </div>
+  <div id="toast" role="status" class="fixed z-[99] bottom-6 left-1/2 -translate-x-1/2 bg-[#26364D] text-white text-sm rounded-xl px-5 py-3 pointer-events-none opacity-0">Notifikasi</div>
+  
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const state = { csrf: "", decks: [], page: 1, total: 0, cards: [], shadowingCards: [], importData: null };
+    let debounceTimer;
+
+    // Escaping output tanpa regex (hanya .split().join())
+    function esc(x) { 
+      return String(x ?? "")
+        .split("&").join("&amp;")
+        .split("<").join("&lt;")
+        .split(">").join("&gt;")
+        .split('"').join("&quot;")
+        .split("'").join("&#39;"); 
+    }
+
+    function toast(s) {
+      $("toast").textContent = s; $("toast").style.opacity = "1";
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => ($("toast").style.opacity = "0"), 3500);
+    }
+    async function api(url, options = {}) {
+      const method = (options.method || "GET").toUpperCase();
+      const headers = { ...(options.headers || {}) };
+      if (options.body) headers["Content-Type"] = "application/json";
+      if (!["GET", "HEAD"].includes(method)) headers["x-csrf-token"] = state.csrf;
+      const r = await fetch(url, { ...options, headers });
+      if (r.status === 401) { location.replace("/login"); throw Error("Login kembali."); }
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(data.error || "Request gagal.");
+      return data;
+    }
+    function toggleMenu(v) {
+      $("sidebar").classList.toggle("open", v); $("overlay").classList.toggle("open", v);
+    }
+    function showTab(tab) {
+      document.querySelectorAll(".section").forEach((x) => x.classList.toggle("active", x.id === "tab-" + tab));
+      document.querySelectorAll("[data-nav]").forEach((x) => x.classList.toggle("active", x.dataset.nav === tab));
+      $("headerTitle").textContent = { overview: "Overview", decks: "Deck & Day Manager", cards: "Flashcard Manager", shadowing: "Kotoba Read", import: "Import / Export" }[tab];
+      toggleMenu(false);
+      if (tab === "overview") loadStats();
+      if (tab === "cards") loadCards(state.page);
+      if (tab === "shadowing") loadShadowing();
+      if (tab === "decks") { renderDecks(); loadDayManager(); }
+      if (tab === "import") loadImportDays();
+      window.scrollTo(0, 0);
+    }
+    function openModal(title, html) {
+      $("modalTitle").textContent = title; $("modalContent").innerHTML = html;
+      $("modal").classList.remove("hidden"); $("modal").classList.add("flex");
+    }
+    function closeModal() {
+      $("modal").classList.add("hidden"); $("modal").classList.remove("flex");
+    }
+    window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+    async function boot() {
+      try {
+        const me = await api("/api/auth/me");
+        state.csrf = me.csrfToken;
+        await refreshDecks();
+        await loadStats();
+      } catch (e) { toast(e.message); }
+    }
+    
+    async function refreshDecks() {
+      const r = await api("/api/admin/decks");
+      state.decks = r.data;
+      const html = (all = false) => (all ? '<option value="">All Decks</option>' : "") + state.decks.filter((d) => !d.archived).map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
+      const saved = {};
+      ["dayDeck", "cardDeckFilter", "importDeck"].forEach((id) => (saved[id] = $(id).value));$("dayDeck").innerHTML = html(); $("cardDeckFilter").innerHTML = html(true); $("importDeck").innerHTML = html();
+      for (const id of Object.keys(saved)) { if ([...$(id).options].some((o) => o.value === saved[id]))$(id).value = saved[id]; }
+      renderDecks();
+    }
+    
+    async function loadStats() {
+      try {
+        const s = await api("/api/stats/overview");
+        $("overviewStats").innerHTML = [
+          ["Decks", s.decks, "fa-layer-group"], ["Flashcards", s.cards, "fa-book"],
+          ["Mastered", s.mastered, "fa-check-circle"], ["Due Review", s.due, "fa-clock"]
+        ].map(([label, n, icon]) => `<div class="panel p-5 soft"><i class="fa-solid ${icon} text-[#91B0D1]"></i><div class="font-black text-3xl mt-3">${n}</div><div class="text-xs text-slate-500 mt-1">${label}</div></div>`).join("");
+        
+        if (window.statsChart) window.statsChart.destroy();
+        window.statsChart = new ApexCharts(document.getElementById("overviewStatsChart"), {
+           series: [{ name: 'Count', data: [s.decks, s.cards, s.mastered, s.due] }],
+           chart: { type: 'bar', height: 300, toolbar: { show: false } },
+           colors: ['#89AED9', '#537EBD', '#369374', '#C45F6E'],
+           plotOptions: { bar: { distributed: true, borderRadius: 6 } },
+           xaxis: { categories: ['Decks', 'Cards', 'Mastered', 'Due'] },
+           dataLabels: { enabled: false }
+        });
+        window.statsChart.render();
+      } catch (e) { toast(e.message); }
+    }
+
+    function renderDecks() {
+      $("deckList").innerHTML = state.decks.length ? state.decks.map((d) => `<div class="panel p-5 ${d.archived ? "opacity-60" : ""}"><div class="flex gap-3 items-start justify-between"><div class="w-12 h-12 rounded-xl grid place-items-center text-white" style="background:${esc(d.color)}"><i class="fa-solid ${esc(d.icon)}"></i></div><span class="text-xs ${d.archived ? "text-red-500" : "text-[#6B9A8A]"}">${d.archived ? "Archived" : "Active"}</span></div><h3 class="font-bold text-lg mt-4">${esc(d.name)}</h3><p class="text-sm text-slate-500 line-clamp-2 mt-1 min-h-10">${esc(d.description || "Belum ada deskripsi.")}</p><div class="flex justify-between items-center mt-4"><span class="text-sm text-slate-400">${d.card_count} flashcards</span><div class="flex gap-2"><button onclick="openDeckForm(${d.id})" class="btn btn-secondary">Edit</button>${d.archived ? `<button class="btn btn-secondary" onclick="restoreDeck(${d.id})">Restore</button><button class="btn btn-danger" onclick="permaDeleteDeck(${d.id})">Delete</button>` : `<button class="btn btn-danger" onclick="archiveDeck(${d.id})">Arsip</button>`}</div></div></div>`).join("") : '<div class="panel p-6 text-sm text-slate-400">Belum ada deck. Buat satu untuk memulai.</div>';
+    }
+    
+    function openDeckForm(id = null) {
+      const d = state.decks.find((d) => String(d.id) === String(id));
+      openModal(d ? "Edit Deck" : "Create Deck", `<form id="deckForm" class="space-y-4"><div><label class="label">Nama Deck *</label><input class="inp" name="name" maxlength="120" required value="${esc(d?.name)}" placeholder="Podcast Vocabulary"></div><div><label class="label">Deskripsi</label><textarea class="inp" rows="3" name="description" maxlength="1000">${esc(d?.description)}</textarea></div><div class="grid grid-cols-2 gap-3"><div><label class="label">Color</label><input type="color" class="inp !h-12" name="color" value="${esc(d?.color || "#89AED9")}"></div><div><label class="label">Font Awesome icon</label><input class="inp" name="icon" maxlength="60" value="${esc(d?.icon || "fa-book-open")}"></div></div><button class="btn w-full" type="submit">${d ? "Save Deck" : "Create Deck"}</button></form>`);
+      $("deckForm").onsubmit = async (e) => {
+        e.preventDefault(); const v = Object.fromEntries(new FormData(e.target));
+        try {
+          if (d) await api("/api/admin/decks/" + d.id, { method: "PATCH", body: JSON.stringify({ ...v, archived: d.archived }) });
+          else await api("/api/admin/decks", { method: "POST", body: JSON.stringify(v) });
+          closeModal(); await refreshDecks(); await loadDayManager(); toast("Deck berhasil disimpan.");
+        } catch (e) { toast(e.message); }
+      };
+    }
+    async function archiveDeck(id) { if (!confirm("Arsipkan deck?")) return; try { await api("/api/admin/decks/" + id, { method: "DELETE" }); await refreshDecks(); toast("Deck diarsipkan."); } catch (e) { toast(e.message); } }
+    async function permaDeleteDeck(id) { if (!confirm("Hapus permanen deck dan SELURUH kartu di dalamnya?")) return; try { await api("/api/admin/decks/" + id + "?permanent=true", { method: "DELETE" }); await refreshDecks(); await loadDayManager(); toast("Deck dihapus permanen."); } catch (e) { toast(e.message); } }
+    async function restoreDeck(id) { const d = state.decks.find(x => String(x.id) === String(id)); if(!d) return; try { await api("/api/admin/decks/" + id, { method: "PATCH", body: JSON.stringify({ ...d, archived: false }) }); await refreshDecks(); toast("Deck dipulihkan."); } catch (e) { toast(e.message); } }
+    
+    async function loadDayManager() {
+      const deckId = $("dayDeck").value; if (!deckId) return;
+      try {
+        const r = await api(`/api/decks/${deckId}/days`);
+        $("dayList").innerHTML = r.data.length ? r.data.map((d) => `<div class="p-4 rounded-xl bg-[#F6F9FD] flex flex-wrap items-center gap-3 justify-between"><div><b>Day ${d.day_number} | ${esc(d.title || "Untitled")}</b><div class="text-xs text-slate-400">${d.card_count} cards</div></div><div class="flex flex-wrap gap-2"><button class="btn btn-secondary" onclick="manageDayCards(${d.id},${deckId})">Manage Cards</button><button class="btn btn-secondary" onclick="editDay(${d.id},${d.day_number},'${esc(d.title)}')">Edit</button><button class="btn btn-danger" onclick="deleteDay(${d.id})">Delete</button></div></div>`).join("") : '<p class="text-sm text-slate-400">Deck belum memiliki Day.</p>';
+      } catch (e) { toast(e.message); }
+    }
+    async function createDay() { try { await api("/api/admin/days", { method: "POST", body: JSON.stringify({ deckId: $("dayDeck").value, dayNumber: Number($("dayNumber").value), title: $("dayTitle").value }) }); $("dayNumber").value = ""; $("dayTitle").value = ""; await loadDayManager(); toast("Day dibuat."); } catch (e) { toast(e.message); } }
+    function editDay(id, num, encTitle) { openModal("Edit Day", `<form id="dayForm" class="space-y-4"><label class="label">Nomor Day</label><input class="inp" name="dayNumber" type="number" min="1" value="${num}" required><label class="label">Judul</label><input class="inp" name="title" maxlength="150" value="${esc(encTitle)}"><button class="btn w-full">Save Day</button></form>`); $("dayForm").onsubmit = async (e) => { e.preventDefault(); const d = new FormData(e.target); try { await api("/api/admin/days/" + id, { method: "PATCH", body: JSON.stringify({ dayNumber: Number(d.get("dayNumber")), title: d.get("title") }) }); closeModal(); await loadDayManager(); toast("Day diperbarui."); } catch (e) { toast(e.message); } }; }
+    async function deleteDay(id) { if (!confirm("Hapus Day ini?")) return; try { await api("/api/admin/days/" + id, { method: "DELETE" }); await loadDayManager(); toast("Day dihapus."); } catch (e) { toast(e.message); } }
+    
+    async function manageDayCards(dayId, deckId) { try { const [all, assigned] = await Promise.all([api(`/api/flashcards?deckId=${deckId}&limit=50`), api(`/api/admin/days/${dayId}/card-ids`)]); const exists = new Set(assigned.data.map(String)); openModal("Kelola Flashcard dalam Day", `<div class="space-y-4"><div class="flex gap-2"><input id="dayCardSearch" class="inp" placeholder="Cari..."><button class="btn btn-secondary" onclick="searchDayCards(${dayId},${deckId})">Cari</button></div><div id="dayCandidates" class="space-y-2 max-h-[56vh] overflow-y-auto">${all.data.map((c) => dayCardRow(c, dayId, exists.has(String(c.id)))).join("")}</div></div>`); } catch (e) { toast(e.message); } }
+    function dayCardRow(c, dayId, linked) { return `<div class="p-3 bg-[#F6F9FD] rounded-xl flex justify-between items-center gap-2"><div><b class="jp">${esc(c.kanji)}</b><div class="text-xs text-slate-500">${esc(c.arti)}</div></div><button class="btn ${linked ? "btn-danger" : "btn-secondary"}" onclick="toggleDayCard(${dayId},${c.id},${linked})">${linked ? "Remove" : "Add"}</button></div>`; }
+    async function searchDayCards(dayId, deckId) { try { const q = encodeURIComponent($("dayCardSearch").value); const [all, assigned] = await Promise.all([api(`/api/flashcards?deckId=${deckId}&limit=50&q=${q}`), api(`/api/admin/days/${dayId}/card-ids`)]); const exists = new Set(assigned.data.map(String)); $("dayCandidates").innerHTML = all.data.map((c) => dayCardRow(c, dayId, exists.has(String(c.id)))).join("") || "<p>Tidak ditemukan.</p>"; } catch (e) { toast(e.message); } }
+    async function toggleDayCard(dayId, cardId, linked) { try { if (linked) await api(`/api/admin/days/${dayId}/cards/${cardId}`, { method: "DELETE" }); else await api(`/api/admin/days/${dayId}/cards`, { method: "POST", body: JSON.stringify({ cardId }) }); const deckId = $("dayDeck").value, q = $("dayCardSearch")?.value || ""; await loadDayManager(); await manageDayCards(dayId, deckId); $("dayCardSearch").value = q; if (q) await searchDayCards(dayId, deckId); } catch (e) { toast(e.message); } }
+    
+    function debouncedCards() { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => loadCards(1), 300); }
+    async function loadCards(page = 1) {
+      state.page = Math.max(1, page);
+      const deck = $("cardDeckFilter").value, q = $("cardSearch").value, archived = $("archivedFilter").value;
+      try {
+        const params = new URLSearchParams({ page: String(state.page), limit: "5", q, archived });
+        if (deck) params.set("deckId", deck);
+        const r = await api("/api/admin/flashcards?" + params);
+        state.cards = r.data; state.total = r.total; const pages = Math.max(1, Math.ceil(state.total / 5));
+        if (!state.cards.length && state.page > pages) return loadCards(pages);
+        $("cardRows").innerHTML = state.cards.length ? state.cards.map((c) => `<tr><td class="jp font-bold">${esc(c.kanji)}</td><td class="jp">${esc(c.furigana)}</td><td>${esc(c.arti)}</td><td>${esc(c.deck_name)}</td><td><div class="flex gap-2"><button class="text-blue-600 font-bold" onclick="previewCard(${c.id})">Preview</button><button class="text-slate-600 font-bold" onclick="openCardForm(${c.id})">Edit</button><button class="text-red-500 font-bold" onclick="archiveCard(${c.id})">${c.archived ? "Restore" : "Delete"}</button></div></td></tr>`).join("") : '<tr><td colspan="5" class="text-slate-400">Tidak ada flashcard.</td></tr>';
+        $("cardPageInfo").textContent = `${state.total ? (state.page - 1) * 5 + 1 : 0}-${Math.min(state.page * 5, state.total)} dari ${state.total} | Page ${state.page}/${pages}`;
+        $("prevPage").disabled = state.page <= 1; $("nextPage").disabled = state.page >= pages;
+      } catch (e) { toast(e.message); }
+    }
+    
+    // Load Shadowing hanya melakukan fetch normal ke /api/admin/flashcards dan memfilter mandiri.
+    // Tanpa regex dan aman dari proses di luar server.
+    async function loadShadowing() {
+      try {
+        const r = await api("/api/admin/flashcards?limit=100");
+        state.shadowingCards = r.data.filter(c => c.audio_url || c.source_url || c.example_sentence);
+        
+        $("shadowingRows").innerHTML = state.shadowingCards.length ? state.shadowingCards.map(c => `
+          <tr>
+            <td class="jp font-bold">${esc(c.kanji)}</td>
+            <td class="jp">${esc(c.furigana)}</td>
+            <td>
+              ${c.audio_url ? '<i class="fa-solid fa-music text-blue-500 mr-2" title="Audio"></i>' : ''}
+              ${c.source_url ? '<i class="fa-solid fa-link text-green-500" title="URL"></i>' : ''}
+              ${c.example_sentence ? '<i class="fa-solid fa-language text-purple-500" title="Contoh Kalimat"></i>' : ''}
+            </td>
+            <td>${esc(c.deck_name)}</td>
+            <td><button class="text-slate-600 font-bold" onclick="openCardForm(${c.id})">Edit</button></td>
+          </tr>`).join("") : '<tr><td colspan="5" class="text-center text-slate-500">Belum ada data shadowing. Tambahkan Audio, Kalimat atau URL ke flashcard.</td></tr>';
+        
+        $("shadowingPageInfo").textContent = `Menampilkan ${state.shadowingCards.length} data Shadowing terbaru`;
+      } catch(e) { toast(e.message); }
+    }
+
+    function previewCard(id) {
+      const c = state.cards.find((x) => String(x.id) === String(id)); if (!c) return;
+      openModal("Preview Flashcard", `<div class="bg-[#F1F7FF] p-7 rounded-2xl text-center"><div class="jp text-4xl font-bold">${esc(c.kanji)}</div><div class="jp text-xl text-[#7394B6] mt-2">${esc(c.furigana)}</div><p class="font-bold text-lg mt-3">${esc(c.arti)}</p></div><div class="mt-6 space-y-3 text-sm"><div><b>Deck:</b> ${esc(c.deck_name)}</div><div><b>Contoh:</b> <span class="jp">${esc(c.example_sentence) || "-"}</span></div><div><b>Terjemahan:</b> ${esc(c.sentence_translation) || "-"}</div><div><b>Catatan:</b> ${esc(c.notes) || "-"}</div><div><b>Sumber:</b> ${esc(c.source_title) || "-"}</div>${c.source_url ? `<div><a target="_blank" rel="noopener noreferrer" class="text-blue-600 underline" href="${esc(c.source_url)}">Buka sumber</a></div>` : ""}</div>`);
+    }
+    function openCardForm(id = null) {
+      const c = state.cards.find((x) => String(x.id) === String(id)) || state.shadowingCards.find((x) => String(x.id) === String(id));
+      const decks = state.decks.filter((d) => !d.archived);
+      if (!decks.length) { toast("Buat deck terlebih dahulu."); showTab("decks"); return; }
+      const deckId = c?.deck_id || decks[0].id;
+      openModal(c ? "Edit Flashcard" : "Create Flashcard", `<form id="cardForm" class="space-y-4"><div class="grid sm:grid-cols-2 gap-3"><div><label class="label">Deck *</label><select ${c ? "disabled" : ""} id="formDeck" class="inp" onchange="loadFormDays()">${decks.map((d) => `<option value="${d.id}" ${String(d.id) === String(deckId) ? "selected" : ""}>${esc(d.name)}</option>`).join("")}</select></div><div><label class="label">Day (opsional)</label><select id="formDay" class="inp"><option value="">Tanpa Day</option></select></div></div><div><label class="label">Kotoba / Kanji *</label><input class="inp jp" name="kanji" maxlength="200" required value="${esc(c?.kanji)}"></div><div><label class="label">Furigana *</label><input class="inp jp" name="furigana" maxlength="200" required value="${esc(c?.furigana)}"></div><div><label class="label">Arti *</label><input class="inp" name="arti" maxlength="400" required value="${esc(c?.arti)}"></div><details class="bg-[#F6F9FD] rounded-2xl p-4" ${!c || (c && (c.audio_url || c.source_url || c.example_sentence)) ? 'open' : ''}><summary class="font-bold cursor-pointer">Advanced Details (opsional)</summary><div class="grid gap-3 mt-4"><div><label class="label">Contoh kalimat Jepang</label><textarea class="inp jp" name="example_sentence" rows="2">${esc(c?.example_sentence)}</textarea></div><div><label class="label">Terjemahan kalimat</label><textarea class="inp" name="sentence_translation" rows="2">${esc(c?.sentence_translation)}</textarea></div><div><label class="label">Catatan konteks</label><textarea class="inp" name="notes" rows="2">${esc(c?.notes)}</textarea></div><div><label class="label">Judul sumber podcast</label><input class="inp" name="source_title" value="${esc(c?.source_title)}"></div><div><label class="label">URL sumber (YouTube, dll)</label><input class="inp" type="url" name="source_url" value="${esc(c?.source_url)}"></div><div><label class="label">Direct Audio URL (MP3, WAV)</label><input class="inp" type="url" name="audio_url" value="${esc(c?.audio_url)}"></div><div><label class="label">Timestamp (detik)</label><input type="number" min="0" class="inp" name="timestamp_sec" value="${esc(c?.timestamp_sec)}"></div></div></details><button type="submit" class="btn w-full">${c ? "Save Changes" : "Create Flashcard"}</button></form>`);
+      loadFormDays();
+      $("cardForm").onsubmit = async (e) => {
+        e.preventDefault(); const v = Object.fromEntries(new FormData(e.target));
+        v.deckId = Number($("formDeck").value); v.dayId = $("formDay").value ? Number($("formDay").value) : null; if (v.timestamp_sec === "") v.timestamp_sec = null;
+        try {
+          if (c) {
+            await api("/api/admin/flashcards/" + c.id, { method: "PATCH", body: JSON.stringify({ ...v, archived: c.archived }) });
+            if (v.dayId) await api(`/api/admin/days/${v.dayId}/cards`, { method: "POST", body: JSON.stringify({ cardId: c.id }) });
+          } else {
+            await api("/api/admin/flashcards", { method: "POST", body: JSON.stringify(v) });
+          }
+          closeModal(); await loadCards(state.page); await loadShadowing(); await refreshDecks(); toast("Flashcard berhasil disimpan.");
+        } catch (e) { toast(e.message); }
+      };
+    }
+    async function loadFormDays() {
+      const deckId = $("formDeck")?.value; if (!deckId) return;
+      try {
+        const r = await api(`/api/decks/${deckId}/days`);
+        $("formDay").innerHTML = '<option value="">Tanpa Day</option>' + r.data.map((d) => `<option value="${d.id}">Day ${d.day_number} | ${esc(d.title)}</option>`).join("");
+      } catch (e) { toast(e.message); }
+    }
+    async function archiveCard(id) {
+      const c = state.cards.find((x) => String(x.id) === String(id)); if (!c) return;
+      if (!c.archived && !confirm("Arsipkan flashcard?")) return;
+      try {
+        if (c.archived) await api("/api/admin/flashcards/" + id, { method: "PATCH", body: JSON.stringify({ ...c, archived: false }) });
+        else await api("/api/admin/flashcards/" + id, { method: "DELETE" });
+        await loadCards(state.page); await loadShadowing(); toast(c.archived ? "Kartu dipulihkan." : "Kartu diarsipkan.");
+      } catch (e) { toast(e.message); }
+    }
+
+    async function loadImportDays() {
+      const deck = $("importDeck").value; if (!deck) return;
+      try { const r = await api("/api/decks/" + deck + "/days"); $("importDay").innerHTML = '<option value="">Tanpa Day</option>' + r.data.map((d) => `<option value="${d.id}">Day ${d.day_number} | ${esc(d.title)}</option>`).join(""); } catch (e) { toast(e.message); }
+    }
+    $("jsonFile").addEventListener("change", async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      if (f.size > 950000) return toast("File JSON terlalu besar.");
+      $("jsonInput").value = await f.text(); state.importData = null; $("commitBtn").disabled = true;
+    });
+    async function previewImport() {
+      try {
+        const data = JSON.parse($("jsonInput").value);
+        const r = await api("/api/admin/import/preview", { method: "POST", body: JSON.stringify({ data, deckId: Number($("importDeck").value) }) });
+        state.importData = r.valid.map(({ row, ...c }) => c); $("commitBtn").disabled = !state.importData.length || !!r.invalid.length;
+        $("importPreview").innerHTML = `<div class="rounded-xl bg-[#F4F8FD] p-4"><b>Valid: ${r.valid.length} | Duplikat: ${r.duplicates.length} | Invalid: ${r.invalid.length}</b>${r.invalid.length ? `<div class="mt-2 text-red-500">${r.invalid.map((x) => `Baris ${x.row}: ${esc(x.reason)}`).join("<br>")}</div>` : ""}</div>`;
+      } catch (e) { toast(e.message); }
+    }
+    async function commitImport() {
+      if (!state.importData?.length) return; const btn = $("commitBtn"); btn.disabled = true;
+      try {
+        const r = await api("/api/admin/import/commit", { method: "POST", body: JSON.stringify({ deckId: Number($("importDeck").value), dayId: $("importDay").value ? Number($("importDay").value) : null, data: state.importData }) });
+        toast(`Berhasil: ${r.inserted} kartu baru.`); state.importData = null; await refreshDecks(); await loadStats();
+      } catch (e) { toast(e.message); btn.disabled = false; }
+    }
+    async function exportJSON() {
+      try {
+        const deck = $("importDeck").value, url = "/api/admin/export" + (deck ? "?deckId=" + encodeURIComponent(deck) : "");
+        const r = await fetch(url); if (!r.ok) throw Error("Export gagal.");
+        const b = await r.blob(), a = document.createElement("a"), u = URL.createObjectURL(b);
+        a.href = u; a.download = "nichijou-kotoba-" + (deck || "all") + ".json";
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
+      } catch (e) { toast(e.message); }
+    }
+    async function logout() { try { await api("/api/auth/logout", { method: "POST", body: "{}" }); location.replace("/login"); } catch (e) { toast(e.message); } }
+    boot();
+  </script>
+</body>
+</html>
