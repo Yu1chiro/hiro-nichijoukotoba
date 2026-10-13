@@ -299,6 +299,7 @@ app.get(
     const r = await pool.query(`SELECT
   (SELECT COUNT(*)::int FROM decks WHERE archived=false) AS decks,
   (SELECT COUNT(*)::int FROM flashcards WHERE archived=false) AS cards,
+  (SELECT COUNT(*)::int FROM card_review_states s JOIN flashcards f ON f.id=s.card_id JOIN decks d ON d.id=f.deck_id WHERE f.archived=false AND d.archived=false AND s.review_count > 0) AS learned,
   (SELECT COUNT(*)::int FROM card_review_states s JOIN flashcards f ON f.id=s.card_id JOIN decks d ON d.id=f.deck_id WHERE f.archived=false AND d.archived=false AND s.status='mastered') AS mastered,
   (SELECT COUNT(*)::int FROM card_review_states s JOIN flashcards f ON f.id=s.card_id JOIN decks d ON d.id=f.deck_id WHERE f.archived=false AND d.archived=false AND s.next_review_at<=NOW()) AS due,
   (SELECT COUNT(*)::int FROM study_sessions WHERE status='completed') AS sessions`);
@@ -767,9 +768,8 @@ function makeQuestions(cards, other) {
     typingSamples = pick(cards.length > 10 ? 10 : 0);
 
   const mc = samples.map((card, i) => {
-    const testType = Math.random() > 0.5 ? "arti" : "furigana";
-    const prompt =
-      testType === "arti" ? card.kanji : `${card.kanji} (Bacaan Furigana)`;
+    const testType = "furigana";
+    const prompt = card.kanji;
     const seen = new Set([normalize(card[testType])]);
     const distractors = [];
     for (const x of shuffle(other)) {
@@ -784,33 +784,42 @@ function makeQuestions(cards, other) {
       key: `m${i + 1}`,
       cardId: card.id,
       prompt: prompt,
+      kanji: card.kanji,
+      furigana: card.furigana,
+      arti: card.arti,
       options: options.map((x) => ({ id: String(x.id), label: x[testType] })),
       correct: String(card.id),
     };
   });
+
   const matching = matchingSamples.map((card, i) => {
     const token = crypto.randomBytes(8).toString("hex");
     return {
       key: `p${i + 1}`,
       cardId: card.id,
       prompt: card.kanji,
+      kanji: card.kanji,
       furigana: card.furigana,
-      label: card.arti,
+      arti: card.arti,
+      label: card.furigana, // Fokus pada cara baca
       token,
       correct: token,
       round: Math.floor(i / Math.min(5, cards.length)),
     };
   });
+
   const typing = typingSamples.map((card, i) => ({
     key: `t${i + 1}`,
     cardId: card.id,
-    prompt: card.arti,
+    prompt: card.kanji, // Menguji kanji ke hiragana
+    kanji: card.kanji,
+    furigana: card.furigana,
+    arti: card.arti,
     answerKanji: card.kanji,
     answerFurigana: card.furigana,
   }));
   return { mc, matching, typing };
 }
-
 app.post(
   "/api/study-sessions/:id/finish",
   asyncRoute(async (req, res) => {
@@ -896,16 +905,22 @@ app.get(
       "SELECT stage,item_key,correct,user_answer FROM quiz_answers WHERE attempt_id=$1 ORDER BY id",
       [quiz.id],
     );
+    
+    // Menghitung total pertanyaan untuk kalkulasi progress bar global
+    const totalQuestions = (quiz.questions.mc?.length || 0) + (quiz.questions.matching?.length || 0) + (quiz.questions.typing?.length || 0);
+
     res.json({
       stage: quiz.stage,
       questions: publicQuiz(quiz.questions, quiz.stage),
       rights: publicRights(quiz.questions, quiz.stage, a.rows),
       answered: a.rows,
-      totalPerStage: 10,
+      totalQuestions,
       sessionId: req.params.sessionId,
     });
   }),
 );
+
+
 async function finishQuiz(client, quiz) {
   const answers = (
     await client.query(
@@ -1004,7 +1019,9 @@ app.post(
         [quiz.id, stage, itemKey],
       );
       if (exists.rowCount) httpError(409, "Soal ini sudah dijawab.");
+      
       let isCorrect;
+      let expectedToken = null;
       if (stage === "typing") {
         isCorrect = [item.answerKanji, item.answerFurigana].some(
           (s) => normalize(s) === normalize(answer),
@@ -1015,9 +1032,11 @@ app.post(
           !!chosen &&
           (chosen.token === item.token ||
             normalize(chosen.label) === normalize(item.label));
+        expectedToken = item.token; // Digunakan frontend untuk sinkronisasi board
       } else {
         isCorrect = String(item.correct) === answer;
       }
+      
       await client.query(
         "INSERT INTO quiz_answers(attempt_id,stage,item_key,card_id,user_answer,correct) VALUES($1,$2,$3,$4,$5,$6)",
         [quiz.id, stage, itemKey, item.cardId, answer, isCorrect],
@@ -1043,10 +1062,14 @@ app.post(
           ]);
       }
       await client.query("COMMIT");
+      
+      // Return details lengkap untuk digunakan pada popup UI
       res.json({
         correct: isCorrect,
         nextStage,
         stageFinished: finished,
+        details: { kanji: item.kanji, furigana: item.furigana, arti: item.arti },
+        expectedToken,
         expected: !isCorrect
           ? stage === "typing"
             ? `${item.answerKanji} / ${item.answerFurigana}`

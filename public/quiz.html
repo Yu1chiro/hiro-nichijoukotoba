@@ -1,4 +1,5 @@
-<!doctype html> <html lang="id">
+<!doctype html>
+<html lang="id">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,167 +9,224 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
   <style>
-    body { font-family: Inter, "Noto Sans JP", sans-serif; background: #f8fbff; color: #26364d; }
+    body { font-family: Inter, "Noto Sans JP", sans-serif; color: #26364d; }
     .jp { font-family: "Noto Sans JP", sans-serif; }
-    .panel { border: 1px solid #e3ebf4; border-radius: 24px; background: #fff; box-shadow: 0 12px 40px rgba(81, 122, 166, 0.06); }
-    .btn { border-radius: 15px; padding: 13px 19px; font-weight: 700; background: #537ebd; color: white; display: inline-flex; align-items: center; justify-content: center; gap: 9px; }
-    .btn:disabled { opacity: 0.45; }
+    .panel { border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 24px; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); box-shadow: 0 12px 42px rgba(81, 122, 166, 0.075); }
+    .btn { border-radius: 15px; padding: 13px 19px; font-weight: 700; background: #537ebd; color: white; display: inline-flex; align-items: center; justify-content: center; gap: 9px; transition: 0.15s; }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
     .option { width: 100%; text-align: left; background: white; border: 1px solid #d8e5f3; border-radius: 15px; padding: 15px; font-weight: 600; transition: 0.15s; }
-    .option:hover { border-color: #7da8dd; background: #f4f8fd; }
+    .option:hover:not(:disabled) { border-color: #7da8dd; background: #f4f8fd; }
     .option.picked { border-color: #537ebd; background: #eaf3ff; }
-    .option:disabled { opacity: 0.45; }
-    .inp { width: 100%; border: 1px solid #d8e5f3; border-radius: 15px; padding: 15px; outline: none; }
-    .inp:focus { border-color: #537ebd; }
+    .option:disabled { opacity: 0.65; cursor: not-allowed; }
+    .inp { width: 100%; border: 1px solid #d8e5f3; border-radius: 15px; padding: 15px; outline: none; transition: 0.15s; }
+    .inp:focus { border-color: #7da8dd; box-shadow: 0 0 0 3px #eaf3ff; }
     #toast { transition: opacity 0.15s; }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   </style>
 </head>
-<body class="min-h-screen px-4 py-7 md:py-12">
+<body class="min-h-screen px-4 py-7 md:py-12 relative bg-gradient-to-br from-[#E7F2FF] via-[#F5F9FF] to-[#FCEEF6]">
   <div class="max-w-3xl mx-auto space-y-6">
     <header class="flex justify-between items-center gap-3">
       <a href="/" class="flex gap-2 items-center font-extrabold text-lg"><span class="w-10 h-10 bg-[#EAF3FF] rounded-xl grid place-items-center text-[#537EBD]"><i class="fa-solid fa-book-open"></i></span>Nichijou Kotoba</a>
       <a href="/" class="text-sm font-bold text-[#6786A7]"><i class="fa-solid fa-house"></i> Home</a>
     </header>
-    <div class="panel p-6 md:p-8">
-      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div>
-          <p class="text-[#90A1B7] text-xs font-bold tracking-widest">ACTIVE QUIZ SESSION</p>
-          <h1 id="stageTitle" class="text-2xl font-extrabold mt-1">Memuat kuis...</h1>
-        </div>
-        <span id="progressLabel" class="bg-[#EAF3FF] text-[#416B9E] px-4 py-2 rounded-full font-bold text-sm">0 / 10</span>
-      </div>
-      <div class="flex gap-2 mb-4" id="stageDots">
-        <span class="flex-1 h-2 rounded-full bg-[#E3EBF4]"></span><span class="flex-1 h-2 rounded-full bg-[#E3EBF4]"></span><span class="flex-1 h-2 rounded-full bg-[#E3EBF4]"></span>
-      </div>
-      <p id="stageDesc" class="text-slate-500 text-sm">Kerjakan tiap tahap dengan tenang.</p>
+
+    <div class="panel p-5 md:p-6 flex flex-col md:flex-row items-center justify-between gap-4" id="quizHeader">
+       <div class="w-full flex items-center justify-between gap-3">
+           <span id="expLabel" class="bg-[#F0F6FC] text-[#5C85B5] px-4 py-2 rounded-full font-black text-sm border border-[#E0EDF8] shadow-sm whitespace-nowrap"><i class="fa-solid fa-leaf text-[#8CAFD5] mr-1"></i> 0 XP</span>
+           <div class="flex-1 mx-2">
+               <div class="w-full bg-[#EBF2FA] h-2.5 rounded-full overflow-hidden">
+                   <div id="progressBar" class="bg-[#8CAFD5] h-full transition-all duration-500 ease-out" style="width: 0%"></div>
+               </div>
+           </div>
+           <span id="progressLabel" class="bg-[#F0F6FC] text-[#5C85B5] px-4 py-2 rounded-full font-bold text-sm border border-[#E0EDF8] whitespace-nowrap">0 / 0</span>
+       </div>
     </div>
-    <div id="content" class="panel p-6 md:p-9 min-h-[310px]">
+
+    <div id="content" class="panel p-6 md:p-9 min-h-[360px] relative">
       <p class="text-slate-400 text-center mt-14">Mengambil pertanyaan...</p>
     </div>
-    <div class="text-center text-xs text-[#A1ADC0]">
-      Jawaban disimpan ke database setiap kali dikirim. Refresh tidak mengulang soal yang sudah dijawab.
-    </div>
   </div>
+
+  <!-- Popup Answer Feedback (Seamless Flow) -->
+  <div id="answerPopup" class="fixed inset-0 z-[100] bg-[#1E293B]/40 backdrop-blur-sm hidden items-center justify-center p-4 opacity-0 transition-all duration-300">
+     <div class="bg-white/95 backdrop-blur-md border border-white rounded-[28px] p-8 max-w-sm w-full text-center transform scale-95 shadow-2xl transition-transform duration-300" id="popupCard">
+        <div id="popupIcon" class="w-16 h-16 rounded-2xl mx-auto grid place-items-center text-3xl mb-5 shadow-sm"></div>
+        <h3 id="popupStatus" class="font-black text-2xl mb-2 tracking-wide"></h3>
+        <div class="bg-[#F4F8FD]/80 rounded-2xl p-5 mt-5 border border-[#E8F1FA]">
+           <div class="jp text-4xl font-bold text-[#3B597B] mb-2 drop-shadow-sm" id="popupKanji"></div>
+           <div class="jp text-[#6B93BE] font-bold text-lg tracking-wider" id="popupFuri"></div>
+           <div class="text-[#7D97B4] text-sm mt-4 border-t border-[#E1EAF5] pt-4" id="popupArti"></div>
+        </div>
+     </div>
+  </div>
+
   <div id="toast" class="fixed z-30 bottom-6 left-1/2 -translate-x-1/2 bg-[#26364D] text-white text-sm px-5 py-3 rounded-xl opacity-0 pointer-events-none"></div>
-  
+
   <script>
     const $ = (id) => document.getElementById(id);
     const session = new URLSearchParams(location.search).get("session");
-    let quiz = null, selectedLeft = null, selectedRight = null, busy = false, feedback = null;
+    let quiz = null, selectedLeft = null, selectedRight = null, busy = false;
 
     function esc(x) { return String(x ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;","<": "&lt;",">": "&gt;",'"': "&quot;","'": "&#39;"})[c]); }
     function toast(m) { $("toast").textContent = m; $("toast").style.opacity = "1"; clearTimeout(window.toastTime); window.toastTime = setTimeout(() => ($("toast").style.opacity = "0"), 3500); }
+    
     async function api(url, options = {}) {
       const r = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw Error(j.error || "Network error");
       return j;
     }
-    
+
     async function load() {
       if (!session) { $("content").innerHTML = '<p class="text-center text-red-500">Session ID tidak ada. Mulai belajar dari Home.</p>'; return; }
       try {
         quiz = await api("/api/quiz/" + encodeURIComponent(session));
-        selectedLeft = null; selectedRight = null; feedback = null;
+        selectedLeft = null; selectedRight = null;
         render();
       } catch (e) { $("content").innerHTML = `<p class="text-red-500 text-center">${esc(e.message)}</p>`; }
     }
-    
+
+    function updateProgress() {
+        const totalDone = quiz.answered.length;
+        const totalQs = quiz.totalQuestions || 30;
+        const exp = quiz.answered.filter(x => x.correct).length * 15;
+        
+        $("expLabel").innerHTML = `<i class="fa-solid fa-leaf text-[#8CAFD5] mr-1"></i> ${exp} XP`;
+        
+        if (quiz.stage === "done") {
+            $("quizHeader").style.display = "none";
+        } else {
+            $("progressLabel").textContent = `${totalDone} / ${totalQs}`;
+            $("progressBar").style.width = `${Math.round((totalDone / totalQs) * 100)}%`;
+        }
+    }
+
     function render() {
-      const labels = { mc: "Multiple Choice", matching: "Matching Cards", typing: "Japanese Typing", done: "Quiz Completed" };
-      $("stageTitle").textContent = labels[quiz.stage];
-      const totalDone = quiz.answered.filter((x) => x.stage === quiz.stage).length;
-      $("progressLabel").textContent = quiz.stage === "done" ? "Selesai" : `${totalDone} / ${quiz.questions.length}`;
-      const order = ["mc", "matching", "typing"];
-      $("stageDots").innerHTML = order.map((s, i) => `<span class="flex-1 h-2 rounded-full ${quiz.stage === "done" || order.indexOf(quiz.stage) > i ? "bg-[#B9E3D6]" : quiz.stage === s ? "bg-[#537EBD]" : "bg-[#E3EBF4]"}"></span>`).join("");
-      $("stageDesc").textContent = { mc: "Tahap 1/3: pilih yang paling tepat.", matching: "Tahap 2/3: cocokkan kartu secara bergantian.", typing: "Tahap 3/3: ketik jawaban Kanji atau Hiragana.", done: "Lihat hasil, pelajari kesalahan, lalu review kembali." }[quiz.stage];
+      updateProgress();
       if (quiz.stage === "done") return showResult();
       if (quiz.stage === "mc") return renderMc();
       if (quiz.stage === "matching") return renderMatch();
       renderTyping();
     }
-    
+
     function remaining() {
       const answered = new Set(quiz.answered.filter((a) => a.stage === quiz.stage).map((a) => a.item_key));
       return quiz.questions.filter((q) => !answered.has(q.key));
     }
-    
+
     function renderMc() {
       const q = remaining()[0];
       if (!q) return load();
-      $("content").innerHTML = `<p class="text-xs font-bold tracking-widest text-[#8EA8C2] mb-5">PILIH JAWABAN YANG SESUAI</p><div class="jp text-center text-4xl md:text-5xl font-bold my-9 break-all">${esc(q.prompt)}</div><div class="grid gap-3" id="opts">${q.options.map((o, i) => `<button class="option" onclick="submitAnswer('${esc(q.key)}','${esc(o.id)}')"><span class="inline-flex w-8 h-8 items-center justify-center rounded-lg bg-[#F0F5FA] mr-3">${String.fromCharCode(65 + i)}</span>${esc(o.label)}</button>`).join("")}</div>`;
+      $("content").innerHTML = `<p class="text-xs font-bold tracking-widest text-[#8EA8C2] text-center mb-5">PILIH BACAAN YANG TEPAT</p><div class="jp text-center text-5xl md:text-6xl font-bold my-10 drop-shadow-sm break-all">${esc(q.prompt)}</div><div class="grid sm:grid-cols-2 gap-3" id="opts">${q.options.map((o, i) => `<button class="option text-lg !py-4" onclick="submitAnswer('${esc(q.key)}','${esc(o.id)}')"><span class="inline-flex w-8 h-8 items-center justify-center rounded-lg bg-[#F0F5FA] mr-3 text-sm">${String.fromCharCode(65 + i)}</span><span class="jp">${esc(o.label)}</span></button>`).join("")}</div>`;
     }
-    
+
     function renderMatch() {
       const list = remaining();
       if (!list.length) return load();
       const round = Math.min(...list.map((q) => q.round));
       const left = list.filter((q) => q.round === round);
       const right = (quiz.rights || []).filter((r) => r.round === round);
-      
+
       if (!window.matchOrder || window.matchRound !== round) {
         window.matchRound = round; window.matchOrder = right.map((r) => r.id);
       }
       right.sort((a, b) => window.matchOrder.indexOf(a.id) - window.matchOrder.indexOf(b.id));
-      
-      $("content").innerHTML = `<div class="flex justify-between mb-6"><p class="text-xs tracking-wider font-bold text-[#8EA8C2]">TAP TO MATCH</p><span class="text-xs text-slate-400">Group ${round + 1}</span></div><p class="text-sm text-slate-500 mb-5">Pilih kartu sebelah kiri, kemudian pilih terjemahannya.</p><div class="grid grid-cols-2 gap-3"><div class="space-y-3">${left.map((q) => `<button id="btn-L-${esc(q.key)}" class="option jp !text-center ${selectedLeft === q.key ? "picked" : ""}" onclick="pickLeft('${esc(q.key)}')">${esc(q.prompt)}</button>`).join("")}</div><div class="space-y-3">${right.map((q) => `<button id="btn-R-${esc(q.id)}" class="option !text-center text-sm ${selectedRight === q.id ? "picked" : ""}" onclick="pickRight('${esc(q.id)}')">${esc(q.label)}</button>`).join("")}</div></div><p class="text-xs text-center text-slate-400 mt-6">${left.length} pasangan tersisa dalam group ini.</p>`;
-      
+
+      $("content").innerHTML = `<div class="flex justify-between items-center mb-6"><p class="text-xs tracking-wider font-bold text-[#8EA8C2]">COCOKKAN KANJI & FURIGANA</p><span class="text-xs text-[#5C85B5] font-bold bg-[#F0F6FC] px-3 py-1 rounded-md border border-[#E0EDF8]">Group ${round + 1}</span></div><div class="grid grid-cols-2 gap-4"><div class="space-y-3">${left.map((q) => `<button id="btn-L-${esc(q.key)}" class="option jp !text-center text-xl !py-4 ${selectedLeft === q.key ? "picked" : ""}" onclick="pickLeft('${esc(q.key)}')">${esc(q.prompt)}</button>`).join("")}</div><div class="space-y-3">${right.map((q) => `<button id="btn-R-${esc(q.id)}" class="option jp !text-center text-lg !py-4 ${selectedRight === q.id ? "picked" : ""}" onclick="pickRight('${esc(q.id)}')">${esc(q.label)}</button>`).join("")}</div></div>`;
+
       if (selectedLeft && selectedRight) {
         const item = left.find((x) => x.key === selectedLeft);
         if (item) submitAnswer(item.key, selectedRight);
       }
     }
+
     function pickLeft(key) { if (busy) return; selectedLeft = key; renderMatch(); }
     function pickRight(id) { if (busy) return; selectedRight = id; renderMatch(); }
-    
+
     function renderTyping() {
       const q = remaining()[0];
       if (!q) return load();
-      $("content").innerHTML = `<p class="text-xs font-bold tracking-wider text-[#8EA8C2]">TYPE THE JAPANESE WORD</p><div class="rounded-2xl bg-[#F4F8FE] text-center py-9 px-4 my-7"><p class="text-sm text-[#899CAF] mb-2">Terjemahkan ke bahasa Jepang</p><div class="font-extrabold text-2xl">${esc(q.prompt)}</div></div><form id="typingForm" class="space-y-4"><label for="answer" class="text-sm font-bold">Jawaban Kanji / Furigana</label><input autocomplete="off" autocapitalize="off" spellcheck="false" lang="ja" id="answer" class="inp jp text-xl" placeholder=" ..." maxlength="200" required><button type="submit" class="btn w-full">Periksa Jawaban <i class="fa-solid fa-arrow-right"></i></button></form><p class="text-xs text-slate-400 mt-4">Gunakan keyboard Jepang pada perangkat. Romaji tidak diterima.</p>`;
+      $("content").innerHTML = `<p class="text-xs font-bold tracking-wider text-center text-[#8EA8C2]">KETIK CARA BACA (HIRAGANA)</p><div class="rounded-2xl bg-[#F4F8FE] border border-[#E8F1FA] text-center py-10 px-4 my-7"><div class="jp font-extrabold text-5xl">${esc(q.prompt)}</div><p class="text-sm text-[#899CAF] mt-4">Ketik cara baca dari kosakata di atas</p></div><form id="typingForm" class="space-y-4 max-w-sm mx-auto"><input autocomplete="off" autocapitalize="off" spellcheck="false" lang="ja" id="answer" class="inp jp text-center text-2xl !py-4" placeholder="Hiragana..." maxlength="200" required><button type="submit" class="btn w-full !py-4 text-lg">Periksa <i class="fa-solid fa-arrow-right ml-2"></i></button></form>`;
+      
       $("answer").addEventListener("keydown", (e) => { if (e.isComposing || e.keyCode === 229) e.preventDefault(); });
       $("answer").focus();
       $("typingForm").onsubmit = (e) => { e.preventDefault(); const v = $("answer").value.trim(); if (v) submitAnswer(q.key, v); };
     }
-    
+
+    function showAnswerPopup(correct, details) {
+        const p = $("answerPopup"), icon = $("popupIcon"), status = $("popupStatus");
+        if (correct) {
+            icon.className = "w-16 h-16 rounded-2xl mx-auto grid place-items-center text-3xl mb-4 bg-[#E1F5ED] text-[#369374] shadow-sm";
+            icon.innerHTML = '<i class="fa-solid fa-check"></i>';
+            status.textContent = "Benar! +15 XP";
+            status.className = "font-black text-2xl mb-2 text-[#369374]";
+        } else {
+            icon.className = "w-16 h-16 rounded-2xl mx-auto grid place-items-center text-3xl mb-4 bg-[#FCE9E9] text-[#C45F6E] shadow-sm";
+            icon.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+            status.textContent = "Belum Tepat";
+            status.className = "font-black text-2xl mb-2 text-[#C45F6E]";
+        }
+        
+        $("popupKanji").textContent = details.kanji;
+        $("popupFuri").textContent = details.furigana;
+        $("popupArti").textContent = details.arti;
+
+        p.classList.remove("hidden"); p.classList.add("flex");
+        setTimeout(() => { p.classList.remove("opacity-0"); $("popupCard").classList.remove("scale-95"); $("popupCard").classList.add("scale-100"); }, 10);
+    }
+
+    function hideAnswerPopup() {
+        const p = $("answerPopup");
+        p.classList.add("opacity-0"); $("popupCard").classList.remove("scale-100"); $("popupCard").classList.add("scale-95");
+        setTimeout(() => { p.classList.add("hidden"); p.classList.remove("flex"); }, 300);
+    }
+
     async function submitAnswer(key, answer) {
       if (busy) return; busy = true;
       document.querySelectorAll("#content button").forEach((b) => (b.disabled = true));
+      if ($("answer")) $("answer").disabled = true;
+
       try {
         const r = await api("/api/quiz/" + encodeURIComponent(session) + "/answer", {
           method: "POST", body: JSON.stringify({ stage: quiz.stage, itemKey: key, answer }),
         });
-        
-        if (quiz.stage === "matching") {
-          quiz.answered.push({ stage: quiz.stage, item_key: key, correct: r.correct });
-          quiz.rights = quiz.rights.filter(x => x.id !== answer); // hilangkan kartu sebelah kanan
-          
-          if (r.correct) {
-             toast("Match!");
-          } else {
-             toast("Salah! Pasangan yang benar: " + (r.expected || ""));
-          }
-          $("progressLabel").textContent = "Jawaban tersimpan";
-          
-          selectedLeft = null; selectedRight = null; busy = false;
-          // Reload board mulus jika masih ada sisa/tidak ganti stage
-          if (r.stageFinished || remaining().length === 0) { setTimeout(() => load(), 500); }
-          else { renderMatch(); }
-          return;
+
+        quiz.answered.push({ stage: quiz.stage, item_key: key, correct: r.correct });
+        if (quiz.stage === "matching" && r.expectedToken) {
+           quiz.rights = quiz.rights.filter(x => x.id !== r.expectedToken);
         }
 
-        // Logic selain matching (MC & Typing menggunakan full screen refresh)
-        $("content").innerHTML = `<div class="min-h-[270px] flex flex-col justify-center items-center gap-4 text-center"><div class="w-16 h-16 rounded-2xl grid place-items-center text-2xl ${r.correct ? "bg-[#E1F5ED] text-[#369374]" : "bg-[#FCE9E9] text-[#C45F6E]"}"><i class="fa-solid ${r.correct ? "fa-check" : "fa-xmark"}"></i></div><h2 class="font-black text-2xl">${r.correct ? "Benar!" : "Belum tepat"}</h2>${r.expected ? `<p class="text-slate-600 text-sm">Jawaban benar: <b class="jp">${esc(r.expected)}</b></p>` : ""}<button class="btn mt-3" onclick="load()">${r.stageFinished ? "Lanjut Tahap" : "Soal Berikutnya"} <i class="fa-solid fa-arrow-right"></i></button></div>`;
-        $("progressLabel").textContent = "Jawaban tersimpan";
+        showAnswerPopup(r.correct, r.details);
+        updateProgress();
+
+        setTimeout(() => {
+          hideAnswerPopup();
+          busy = false;
+          selectedLeft = null; selectedRight = null;
+          
+          if (r.stageFinished || (quiz.stage === "matching" && remaining().length === 0)) {
+              load(); // Hard reset to trigger next stage or done
+          } else {
+              if(quiz.stage === "mc") renderMc();
+              else if(quiz.stage === "matching") renderMatch();
+              else renderTyping();
+          }
+        }, 800);
+
       } catch (e) {
-        toast(e.message); await load();
-      } finally { busy = false; }
+        toast(e.message); await load(); busy = false;
+      }
     }
-    
+
     async function showResult() {
       try {
         const r = await api("/api/quiz/" + encodeURIComponent(session) + "/result");
         const sum = r.stages.reduce((a, x) => a + x.correct, 0), total = r.stages.reduce((a, x) => a + x.total, 0);
-        $("content").innerHTML = `<div class="text-center"><div class="w-16 h-16 rounded-2xl bg-[#E2F3EB] text-[#3B997B] grid place-items-center text-3xl mx-auto"><i class="fa-solid fa-award"></i></div><h2 class="text-2xl font-black mt-5">おめでとう</h2><p class="text-slate-500 text-sm mt-2">Kamu berhasil menyelesaikan seluruh tahap.</p><div class="text-5xl font-black mt-5 text-[#537EBD]">${sum}<span class="text-lg text-slate-400"> / ${total}</span></div></div><div class="grid grid-cols-3 gap-2 mt-7">${r.stages.map((s) => `<div class="text-center rounded-xl bg-[#F4F8FE] p-3"><div class="font-black text-lg">${s.correct}/${s.total}</div><div class="text-xs text-[#8498B2]">${{ mc: "MC", matching: "Matching", typing: "Typing" }[s.stage]}</div></div>`).join("")}</div>${r.wrong.length ? `<h3 class="font-bold mt-8 mb-3">Kosakata yang perlu diperbaiki</h3><div class="space-y-2 max-h-[330px] overflow-y-auto">${r.wrong.map((w) => `<div class="bg-[#F8FAFD] p-3 rounded-xl flex gap-3 justify-between"><span class="jp font-bold">${esc(w.kanji)} <small class="font-normal text-slate-400">${esc(w.furigana)}</small></span><span class="text-sm">${esc(w.arti)}</span></div>`).join("")}</div>` : '<p class="text-center text-[#369374] mt-7 font-semibold">Semua jawaban benar. Pertahankan pada review berikutnya!</p>'}<a class="btn w-full mt-7" href="/">Kembali ke Home <i class="fa-solid fa-house"></i></a>`;
+        const exp = sum * 15;
+        
+        $("content").innerHTML = `<div class="text-center"><div class="w-20 h-20 rounded-[24px] bg-[#F0F6FC] text-[#5C85B5] border border-[#E0EDF8] grid place-items-center text-4xl mx-auto shadow-sm"><i class="fa-solid fa-leaf"></i></div><h2 class="text-3xl font-black mt-5 tracking-wide text-[#26364D]">Sesi Selesai!</h2><p class="text-[#7D97B4] mt-2 font-medium">Kamu mendapatkan <strong class="text-[#5C85B5]">${exp} XP</strong></p><div class="text-5xl font-black mt-7 text-[#537EBD] drop-shadow-sm">${sum}<span class="text-xl text-[#A3B8CC]"> / ${total}</span></div></div><div class="grid grid-cols-3 gap-3 mt-9">${r.stages.map((s) => `<div class="text-center rounded-2xl bg-[#F4F8FD] p-4 border border-[#E8F1FA]"><div class="font-black text-xl text-[#3B597B]">${s.correct}/${s.total}</div><div class="text-xs text-[#7D97B4] font-bold tracking-wider mt-1 uppercase">${{ mc: "Ganda", matching: "Match", typing: "Ketik" }[s.stage]}</div></div>`).join("")}</div>${r.wrong.length ? `<h3 class="font-bold mt-10 mb-4 text-[#C45F6E] flex items-center justify-center gap-2"><i class="fa-solid fa-triangle-exclamation"></i> Perlu Diperbaiki</h3><div class="space-y-3 max-h-[350px] overflow-y-auto pr-2">${r.wrong.map((w) => `<div class="bg-[#FDF2F2] p-4 rounded-xl flex flex-col md:flex-row md:items-center gap-2 justify-between border border-[#FCE9E9]"><div class="flex gap-3 items-center"><span class="jp font-bold text-xl text-[#A75261]">${esc(w.kanji)}</span><span class="jp text-[#C45F6E] font-medium">${esc(w.furigana)}</span></div><span class="text-sm text-slate-600 md:text-right line-clamp-2 leading-relaxed">${esc(w.arti)}</span></div>`).join("")}</div>` : '<div class="mt-10 p-5 rounded-xl bg-[#E1F5ED] border border-[#B9E3D6] text-center text-[#369374] font-bold shadow-sm"><i class="fa-solid fa-star mr-2"></i>Sempurna! Pertahankan di sesi berikutnya.</div>'}<a class="btn w-full !py-4 text-lg mt-8" href="/">Kembali ke Home <i class="fa-solid fa-check ml-2"></i></a>`;
       } catch (e) { toast(e.message); }
     }
     load();

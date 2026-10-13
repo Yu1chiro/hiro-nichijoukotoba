@@ -269,21 +269,28 @@
       renderDecks();
     }
     
-    async function loadStats() {
+   async function loadStats() {
       try {
         const s = await api("/api/stats/overview");
+        
+        // Ubah grid menjadi 5 kolom agar muat
+        $("overviewStats").className = "grid grid-cols-2 lg:grid-cols-5 gap-3";
+        
         $("overviewStats").innerHTML = [
-          ["Decks", s.decks, "fa-layer-group"], ["Flashcards", s.cards, "fa-book"],
-          ["Mastered", s.mastered, "fa-check-circle"], ["Due Review", s.due, "fa-clock"]
+          ["Total Decks", s.decks, "fa-layer-group"], 
+          ["Total Cards", s.cards, "fa-book"],
+          ["Dipelajari", s.learned || 0, "fa-seedling"],
+          ["Mastered", s.mastered, "fa-check-circle"], 
+          ["Due Review", s.due, "fa-clock"]
         ].map(([label, n, icon]) => `<div class="panel p-5 soft"><i class="fa-solid ${icon} text-[#91B0D1]"></i><div class="font-black text-3xl mt-3">${n}</div><div class="text-xs text-slate-500 mt-1">${label}</div></div>`).join("");
         
         if (window.statsChart) window.statsChart.destroy();
         window.statsChart = new ApexCharts(document.getElementById("overviewStatsChart"), {
-           series: [{ name: 'Count', data: [s.decks, s.cards, s.mastered, s.due] }],
+           series: [{ name: 'Count', data: [s.decks, s.cards, s.learned || 0, s.mastered, s.due] }],
            chart: { type: 'bar', height: 300, toolbar: { show: false } },
-           colors: ['#89AED9', '#537EBD', '#369374', '#C45F6E'],
+           colors: ['#89AED9', '#A2B8CF', '#537EBD', '#369374', '#C45F6E'],
            plotOptions: { bar: { distributed: true, borderRadius: 6 } },
-           xaxis: { categories: ['Decks', 'Cards', 'Mastered', 'Due'] },
+           xaxis: { categories: ['Decks', 'Cards', 'Dipelajari', 'Mastered', 'Due'] },
            dataLabels: { enabled: false }
         });
         window.statsChart.render();
