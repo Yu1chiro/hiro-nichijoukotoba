@@ -18,6 +18,7 @@ if (!SECRET || SECRET.length < 32 || !PIN || PIN.length < 6) {
   );
   process.exit(1);
 }
+// email on gallerysingaraja
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 5,

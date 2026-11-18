@@ -1,4 +1,5 @@
 -- Nichijou Kotoba - PostgreSQL / NeonDB schema
+-- command backup sql db pg_dump "url_database" -f backup.sql
 -- Jalankan satu kali pada SQL Editor Neon. Aman dijalankan ulang.
 
 CREATE TABLE IF NOT EXISTS decks (
