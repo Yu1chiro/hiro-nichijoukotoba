@@ -55,6 +55,9 @@
       <button class="navlink" data-nav="shadow" onclick="show('shadow')">
         <span><i class="fa-solid fa-book w-7"></i> Kotoba Read</span>
       </button>
+      <a class="navlink" href="/read-bunpou">
+        <span><i class="fa-solid fa-feather-pointed w-7"></i> Note Bunpou</span>
+      </a>
       <a class="navlink" href="/dashboard">
         <span><i class="fa-solid fa-layer-group w-7"></i> Dashboard</span>
       </a>
@@ -98,7 +101,7 @@
         <div class="flex flex-wrap items-end justify-between gap-4 mt-8">
           <div>
             <h2 class="text-xl font-extrabold">Your Learning Days</h2>
-            <p class="text-sm text-[#8493A8] mt-1">Pilih deck dan pantau seberapa jauh proses belajarmu.</p>
+            <p class="text-sm text-[#8493A8] mt-1">Start Learning pada Day memakai SELURUH kartu di Day tersebut. Pilihan "Kartu / sesi" hanya berlaku untuk All Cards &amp; Daily Review.</p>
           </div>
           <div class="flex gap-2 items-center">
             <label for="size" class="text-sm text-slate-500">Kartu / sesi</label>
@@ -137,10 +140,11 @@
           <p id="studyHint" class="text-[#99A8BC] text-xs sm:text-sm max-w-md leading-relaxed">Ingat arti dan bacaannya sebelum menampilkan jawaban.</p>
         </div>
         <button id="revealBtn" class="btn btn-main w-full !py-3.5 sm:!py-4 text-sm sm:text-base" onclick="reveal()"><i class="fa-solid fa-eye"></i> Tampilkan Jawaban</button>
-        <div id="ratingButtons" class="hidden grid grid-cols-3 gap-2.5 sm:gap-3">
-          <button class="btn !px-2 !py-3.5 sm:!py-4 text-sm sm:text-base bg-[#FBE8E8] text-[#A65767]" onclick="rate('again')">Lupa</button>
-          <button class="btn !px-2 !py-3.5 sm:!py-4 text-sm sm:text-base bg-[#FFF1D8] text-[#9E7633]" onclick="rate('hard')">Ragu</button>
-          <button class="btn !px-2 !py-3.5 sm:!py-4 text-sm sm:text-base bg-[#DFF4ED] text-[#307E67]" onclick="rate('good')">Ingat</button>
+        <div id="ratingButtons" class="hidden grid grid-cols-4 gap-2 sm:gap-3">
+          <button class="btn flex-col !px-1 !py-3 text-xs sm:text-base bg-[#FBE8E8] text-[#A65767]" onclick="rate('again')"><span>Lupa</span><small id="iv-again" class="text-[10px] font-semibold opacity-70"></small></button>
+          <button class="btn flex-col !px-1 !py-3 text-xs sm:text-base bg-[#FFF1D8] text-[#9E7633]" onclick="rate('hard')"><span>Sulit</span><small id="iv-hard" class="text-[10px] font-semibold opacity-70"></small></button>
+          <button class="btn flex-col !px-1 !py-3 text-xs sm:text-base bg-[#DFF4ED] text-[#307E67]" onclick="rate('good')"><span>Bagus</span><small id="iv-good" class="text-[10px] font-semibold opacity-70"></small></button>
+          <button class="btn flex-col !px-1 !py-3 text-xs sm:text-base bg-[#E3EEFB] text-[#3E6CA7]" onclick="rate('easy')"><span>Mudah</span><small id="iv-easy" class="text-[10px] font-semibold opacity-70"></small></button>
         </div>
         <button id="toQuiz" class="btn btn-main w-full !py-3.5 sm:!py-4 text-sm sm:text-base hidden" onclick="startQuiz()"><i class="fa-solid fa-arrow-right"></i> Mulai Quiz</button>
       </section>
@@ -383,21 +387,24 @@
       }
     }
     
+    function setIntervalHints(p) {
+      ["again", "hard", "good", "easy"].forEach((k) => { const el = $("iv-" + k); if (el) el.textContent = p?.[k] || ""; });
+    }
     async function reveal() {
-      const currentCard = state.cards[state.position];
-      if (!currentCard || state.busy) return;
+      const cur = state.cards[state.position];
+      if (!cur || state.busy) return;
       state.busy = true;
       $("revealBtn").disabled = true;
       try {
         if (state.session) {
-          const freshSession = await api(`/api/study-sessions/${encodeURIComponent(state.session)}`);
-          if (Array.isArray(freshSession.cards) && freshSession.cards[state.position]) {
-            state.cards = freshSession.cards;
-          }
+          const fresh = await api(`/api/study-sessions/${encodeURIComponent(state.session)}`);
+          const f = (fresh.cards || []).find((c) => String(c.id) === String(cur.id));
+          if (f) state.cards[state.position] = { ...cur, ...f };
         }
       } catch {}
       const card = state.cards[state.position];
       bindStudyCardData(card);
+      setIntervalHints(card.preview);
       state.revealed = true;
       $("revealed").classList.remove("hidden");
       $("studyHint").classList.add("hidden");
@@ -406,11 +413,16 @@
       $("ratingButtons").classList.remove("hidden");
       state.busy = false;
     }
-    
+
     async function rate(rating) {
       const c = state.cards[state.position]; if (!c || state.busy) return; state.busy = true;
       try {
         await api(`/api/study-sessions/${state.session}/rate`, { method: "POST", body: JSON.stringify({ cardId: c.id, rating }) });
+        // Again: kartu muncul lagi beberapa kartu kemudian (learning phase)
+        if (rating === "again") {
+          const at = Math.min(state.position + 4, state.cards.length);
+          state.cards.splice(at, 0, { ...c, self_rating: "again" });
+        }
         state.position++; renderStudy(); if (state.position >= state.cards.length) await startQuiz();
       } catch (e) { notify(e.message); } finally { state.busy = false; }
     }

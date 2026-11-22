@@ -19,6 +19,8 @@
     .option:hover:not(:disabled) { border-color: #7da8dd; background: #f4f8fd; }
     .option.picked { border-color: #537ebd; background: #eaf3ff; }
     .option:disabled { opacity: 0.65; cursor: not-allowed; }
+    .option.ok { border-color: #369374; background: #E1F5ED; color: #246b53; opacity: 1; }
+    .option.bad { border-color: #C45F6E; background: #FCE9E9; color: #A75261; opacity: 1; }
     .inp { width: 100%; border: 1px solid #d8e5f3; border-radius: 15px; padding: 15px; outline: none; transition: 0.15s; }
     .inp:focus { border-color: #7da8dd; box-shadow: 0 0 0 3px #eaf3ff; }
     #toast { transition: opacity 0.15s; }
@@ -145,15 +147,31 @@
     function pickLeft(key) { if (busy) return; selectedLeft = key; renderMatch(); }
     function pickRight(id) { if (busy) return; selectedRight = id; renderMatch(); }
 
+    let typingKey = null, composing = false;
+    function focusAnswer() {
+      const a = $("answer"); if (!a) return;
+      const f = () => { try { a.focus({ preventScroll: true }); } catch { a.focus(); } };
+      f(); requestAnimationFrame(f); setTimeout(f, 120);
+    }
     function renderTyping() {
       const q = remaining()[0];
       if (!q) return load();
-      $("content").innerHTML = `<p class="text-xs font-bold tracking-wider text-center text-[#8EA8C2]">KETIK CARA BACA (HIRAGANA)</p><div class="rounded-2xl bg-[#F4F8FE] border border-[#E8F1FA] text-center py-10 px-4 my-7"><div class="jp font-extrabold text-5xl">${esc(q.prompt)}</div><p class="text-sm text-[#899CAF] mt-4">Ketik cara baca dari kosakata di atas</p></div><form id="typingForm" class="space-y-4 max-w-sm mx-auto"><input autocomplete="off" autocapitalize="off" spellcheck="false" lang="ja" id="answer" class="inp jp text-center text-2xl !py-4" placeholder="Hiragana..." maxlength="200" required><button type="submit" class="btn w-full !py-4 text-lg">Periksa <i class="fa-solid fa-arrow-right ml-2"></i></button></form>`;
-      
-      $("answer").addEventListener("keydown", (e) => { if (e.isComposing || e.keyCode === 229) e.preventDefault(); });
-      $("answer").focus();
-      $("typingForm").onsubmit = (e) => { e.preventDefault(); const v = $("answer").value.trim(); if (v) submitAnswer(q.key, v); };
+      typingKey = q.key;
+      if (!$("typingForm")) {
+        $("content").innerHTML = `<p class="text-xs font-bold tracking-wider text-center text-[#8EA8C2]">KETIK CARA BACA (HIRAGANA)</p><div class="rounded-2xl bg-[#F4F8FE] border border-[#E8F1FA] text-center py-10 px-4 my-7"><div id="typingPrompt" class="jp font-extrabold text-5xl"></div><p class="text-sm text-[#899CAF] mt-4">Ketik cara baca dari kosakata di atas</p></div><form id="typingForm" class="space-y-4 max-w-sm mx-auto"><input autocomplete="off" autocapitalize="off" spellcheck="false" lang="ja" id="answer" class="inp jp text-center text-2xl !py-4" placeholder="Hiragana..." maxlength="200" required><button id="typingBtn" type="submit" class="btn w-full !py-4 text-lg">Periksa <i class="fa-solid fa-arrow-right ml-2"></i></button></form>`;
+        $("answer").addEventListener("compositionstart", () => (composing = true));
+        $("answer").addEventListener("compositionend", () => (composing = false));
+        $("typingForm").onsubmit = (e) => { e.preventDefault(); if (composing || busy) return; const v = $("answer").value.trim(); if (v) submitAnswer(typingKey, v); };
+      }
+      $("typingPrompt").textContent = q.prompt;
+      $("answer").value = ""; $("answer").readOnly = false; $("typingBtn").disabled = false;
+      focusAnswer();
     }
+    document.addEventListener("keydown", (e) => {
+      if (!quiz || quiz.stage !== "typing" || busy || e.ctrlKey || e.metaKey || e.altKey) return;
+      const a = $("answer"); if (a && document.activeElement !== a) a.focus();
+    });
+    document.addEventListener("click", () => { if (quiz && quiz.stage === "typing" && !busy) focusAnswer(); });
 
     function showAnswerPopup(correct, details) {
         const p = $("answerPopup"), icon = $("popupIcon"), status = $("popupStatus");
@@ -185,35 +203,47 @@
 
     async function submitAnswer(key, answer) {
       if (busy) return; busy = true;
+      const stage = quiz.stage;
       document.querySelectorAll("#content button").forEach((b) => (b.disabled = true));
-      if ($("answer")) $("answer").disabled = true;
+      if ($("answer")) $("answer").readOnly = true; // readOnly agar keyboard tetap terbuka
 
       try {
         const r = await api("/api/quiz/" + encodeURIComponent(session) + "/answer", {
-          method: "POST", body: JSON.stringify({ stage: quiz.stage, itemKey: key, answer }),
+          method: "POST", body: JSON.stringify({ stage, itemKey: key, answer }),
         });
 
-        quiz.answered.push({ stage: quiz.stage, item_key: key, correct: r.correct });
-        if (quiz.stage === "matching" && r.expectedToken) {
-           quiz.rights = quiz.rights.filter(x => x.id !== r.expectedToken);
+        quiz.answered.push({ stage, item_key: key, correct: r.correct });
+        if (stage === "matching" && r.expectedToken) {
+          quiz.rights = quiz.rights.filter((x) => x.id !== r.expectedToken);
         }
-
-        showAnswerPopup(r.correct, r.details);
         updateProgress();
 
+        let delay = 800;
+        if (stage === "matching") {
+          // Tanpa popup: hijau jika cocok, merah jika tidak
+          const L = $("btn-L-" + key), R = $("btn-R-" + answer), E = $("btn-R-" + r.expectedToken);
+          [L, R].forEach((b) => b && b.classList.remove("picked"));
+          const cls = r.correct ? "ok" : "bad";
+          if (L) L.classList.add(cls);
+          if (R) R.classList.add(cls);
+          if (!r.correct && E) E.classList.add("ok");
+          delay = 700;
+        } else {
+          showAnswerPopup(r.correct, r.details);
+        }
+
         setTimeout(() => {
-          hideAnswerPopup();
+          if (stage !== "matching") hideAnswerPopup();
           busy = false;
           selectedLeft = null; selectedRight = null;
-          
-          if (r.stageFinished || (quiz.stage === "matching" && remaining().length === 0)) {
-              load(); // Hard reset to trigger next stage or done
+          if (r.stageFinished || (stage === "matching" && remaining().length === 0)) {
+            load();
           } else {
-              if(quiz.stage === "mc") renderMc();
-              else if(quiz.stage === "matching") renderMatch();
-              else renderTyping();
+            if (stage === "mc") renderMc();
+            else if (stage === "matching") renderMatch();
+            else renderTyping();
           }
-        }, 800);
+        }, delay);
 
       } catch (e) {
         toast(e.message); await load(); busy = false;

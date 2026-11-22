@@ -145,6 +145,9 @@ app.get(["/quiz", "/quiz.html"], (req, res) =>
 app.get(["/dashboard", "/dashboard.html"], auth, (req, res) =>
   res.sendFile(path.join(ROOT, "dashboard.html")),
 );
+app.get(["/read-bunpou", "/read-bunpou.html"], (req, res) =>
+  res.sendFile(path.join(ROOT, "read-bunpou.html")),
+);
 app.get("/favicon.ico", (req, res) => res.status(204).end());
 
 app.post("/api/auth/login", (req, res) => {
@@ -682,7 +685,8 @@ app.post(
     const dayId = req.body.dayId ? number(req.body.dayId, "Day") : null,
       mode = req.body.mode === "review" ? "review" : "new",
       limit = Number(req.body.limit || 10);
-    if (![5, 10, 15].includes(limit))
+    const fullDay = mode === "new" && !!dayId; // Day = seluruh kartu di Day tsb
+    if (!fullDay && ![5, 10, 15].includes(limit))
       httpError(400, "Jumlah kartu harus 5, 10, atau 15.");
     if (dayId) await dayExists(dayId, deckId);
     let sql, args;
@@ -690,8 +694,8 @@ app.post(
       sql = `SELECT f.id FROM card_review_states rs JOIN flashcards f ON f.id=rs.card_id WHERE f.deck_id=$1 AND f.archived=false AND rs.next_review_at<=NOW() ORDER BY rs.next_review_at LIMIT $2`;
       args = [deckId, limit];
     } else if (dayId) {
-      sql = `SELECT f.id FROM study_day_cards dc JOIN flashcards f ON f.id=dc.card_id WHERE dc.day_id=$1 AND f.archived=false ORDER BY dc.position,f.id LIMIT $2`;
-      args = [dayId, limit];
+      sql = `SELECT f.id FROM study_day_cards dc JOIN flashcards f ON f.id=dc.card_id WHERE dc.day_id=$1 AND f.archived=false ORDER BY dc.position,f.id`;
+      args = [dayId];
     } else {
       sql =
         "SELECT id FROM flashcards WHERE deck_id=$1 AND archived=false ORDER BY id LIMIT $2";
@@ -740,41 +744,139 @@ WHERE s.id=$1 GROUP BY s.id,d.name`,
       [req.params.id],
     );
     if (!r.rowCount) httpError(404, "Sesi belajar tidak ditemukan.");
-    res.json(r.rows[0]);
+    const row = r.rows[0];
+    const st = await pool.query(
+      "SELECT * FROM card_review_states WHERE card_id = ANY($1::bigint[])",
+      [row.cards.map((c) => c.id)],
+    );
+    const stMap = new Map(st.rows.map((x) => [String(x.card_id), x]));
+    row.cards = row.cards.map((c) => ({
+      ...c,
+      preview: srsPreview(stMap.get(String(c.id))),
+    }));
+    res.json(row);
   }),
 );
+// ===== SRS ala Anki: Again / Hard / Good / Easy =====
+const RATINGS = ["again", "hard", "good", "easy"];
+const LEARN_STEPS = [1, 10]; // menit (kartu baru)
+const RELEARN_STEPS = [10]; // menit (setelah lapse)
+function srsNext(prev, rating) {
+  const status = prev?.status || "new";
+  let ease = Number(prev?.ease_factor) || 2.5;
+  const days = prev?.interval_days || 0;
+  const step = prev?.level || 0;
+  const inReview = status === "reviewing" || status === "mastered";
+  let o;
+  if (inReview) {
+    if (rating === "again") {
+      ease = Math.max(1.3, ease - 0.2);
+      o = { status: "learning", level: 0, days: 1, minutes: RELEARN_STEPS[0], streak: 0 };
+    } else {
+      let nd;
+      if (rating === "hard") {
+        ease = Math.max(1.3, ease - 0.15);
+        nd = Math.max(days + 1, Math.round(days * 1.2));
+      } else if (rating === "good") {
+        nd = Math.max(days + 1, Math.round(days * ease));
+      } else {
+        ease = Math.min(4, ease + 0.15);
+        nd = Math.max(days + 1, Math.round(days * ease * 1.3));
+      }
+      nd = Math.min(nd, 3650);
+      o = { status: nd >= 21 ? "mastered" : "reviewing", level: step + 1, days: nd, minutes: 0, streak: (prev?.success_streak || 0) + 1 };
+    }
+  } else {
+    const relearn = status === "learning" && days > 0;
+    const steps = relearn ? RELEARN_STEPS : LEARN_STEPS;
+    const cur = Math.min(step, steps.length - 1);
+    if (rating === "again") {
+      o = { status: "learning", level: 0, days: relearn ? days : 0, minutes: steps[0], streak: 0 };
+    } else if (rating === "hard") {
+      const m = cur === 0 && steps.length > 1 ? Math.round((steps[0] + steps[1]) / 2) : steps[cur];
+      o = { status: "learning", level: cur, days: relearn ? days : 0, minutes: m, streak: 0 };
+    } else if (rating === "good" && cur + 1 < steps.length) {
+      o = { status: "learning", level: cur + 1, days: relearn ? days : 0, minutes: steps[cur + 1], streak: 0 };
+    } else {
+      const d = rating === "easy" ? (relearn ? Math.max(2, days + 1) : 4) : relearn ? Math.max(1, days) : 1;
+      o = { status: "reviewing", level: 1, days: d, minutes: 0, streak: 1 };
+    }
+  }
+  o.ease = Math.round(ease * 100) / 100;
+  o.dueMinutes = o.minutes > 0 ? o.minutes : o.days * 1440;
+  return o;
+}
+function srsLabel(min) {
+  if (min < 60) return `${min} mnt`;
+  if (min < 1440) return `${Math.round(min / 60)} jam`;
+  const d = Math.round(min / 1440);
+  if (d < 30) return `${d} hr`;
+  if (d < 365) return `${(d / 30).toFixed(1).replace(".0", "")} bln`;
+  return `${(d / 365).toFixed(1).replace(".0", "")} thn`;
+}
+function srsPreview(prev) {
+  const p = {};
+  for (const r of RATINGS) p[r] = srsLabel(srsNext(prev, r).dueMinutes);
+  return p;
+}
 app.post(
   "/api/study-sessions/:id/rate",
   asyncRoute(async (req, res) => {
     const sessionId = req.params.id,
       cardId = number(req.body.cardId, "Kartu"),
       rating = req.body.rating;
-    if (!["again", "hard", "good"].includes(rating))
-      httpError(400, "Rating tidak valid.");
-    const r = await pool.query(
-      `UPDATE study_session_cards sc SET self_rating=$1 FROM study_sessions ss WHERE sc.session_id=ss.id AND ss.id=$2 AND ss.status='studying' AND sc.card_id=$3 RETURNING sc.card_id`,
-      [rating, sessionId, cardId],
-    );
-    if (!r.rowCount)
-      httpError(409, "Kartu tidak ditemukan atau sesi sudah ditutup.");
-    res.json({ ok: true });
+    if (!RATINGS.includes(rating)) httpError(400, "Rating tidak valid.");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const ok = await client.query(
+        `SELECT sc.card_id FROM study_session_cards sc JOIN study_sessions ss ON ss.id=sc.session_id WHERE ss.id=$1 AND ss.status='studying' AND sc.card_id=$2 FOR UPDATE OF sc`,
+        [sessionId, cardId],
+      );
+      if (!ok.rowCount)
+        httpError(409, "Kartu tidak ditemukan atau sesi sudah ditutup.");
+      await client.query(
+        "UPDATE study_session_cards SET self_rating=$1 WHERE session_id=$2 AND card_id=$3",
+        [rating, sessionId, cardId],
+      );
+      const prev = (
+        await client.query(
+          "SELECT * FROM card_review_states WHERE card_id=$1 FOR UPDATE",
+          [cardId],
+        )
+      ).rows[0];
+      const n = srsNext(prev, rating);
+      await client.query(
+        `INSERT INTO card_review_states(card_id,review_count,success_streak,level,interval_days,interval_minutes,ease_factor,next_review_at,last_review_at,status)
+ VALUES($1::bigint,1,$2::int,$3::int,$4::int,$5::int,$6::numeric,NOW()+($7::int * INTERVAL '1 minute'),NOW(),$8::text)
+ ON CONFLICT(card_id) DO UPDATE SET review_count=card_review_states.review_count+1,success_streak=EXCLUDED.success_streak,level=EXCLUDED.level,interval_days=EXCLUDED.interval_days,interval_minutes=EXCLUDED.interval_minutes,ease_factor=EXCLUDED.ease_factor,next_review_at=EXCLUDED.next_review_at,last_review_at=NOW(),status=EXCLUDED.status`,
+        [cardId, n.streak, n.level, n.days, n.minutes, n.ease, n.dueMinutes, n.status],
+      );
+      await client.query("COMMIT");
+      res.json({ ok: true, status: n.status, next: srsLabel(n.dueMinutes) });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
   }),
 );
 
 function makeQuestions(cards, other) {
-  const pick = (offset) =>
-    Array.from({ length: 10 }, (_, i) => cards[(i + offset) % cards.length]);
-  const samples = pick(0),
-    matchingSamples = pick(cards.length > 10 ? 5 : 0),
-    typingSamples = pick(cards.length > 10 ? 10 : 0);
+  // Seluruh kartu sesi dipakai di setiap tahap (MC, matching, typing)
+  const n = cards.length;
+  const mcCards = shuffle(cards),
+    matchCards = shuffle(cards),
+    typeCards = shuffle(cards);
+  let rounds = Math.ceil(n / 5);
+  if (rounds > 1 && n % 5 === 1) rounds -= 1;
 
-  const mc = samples.map((card, i) => {
-    const testType = "furigana";
-    const prompt = card.kanji;
-    const seen = new Set([normalize(card[testType])]);
+  const mc = mcCards.map((card, i) => {
+    const seen = new Set([normalize(card.furigana)]);
     const distractors = [];
     for (const x of shuffle(other)) {
-      const k = normalize(x[testType]);
+      const k = normalize(x.furigana);
       if (seen.has(k)) continue;
       seen.add(k);
       distractors.push(x);
@@ -784,16 +886,15 @@ function makeQuestions(cards, other) {
     return {
       key: `m${i + 1}`,
       cardId: card.id,
-      prompt: prompt,
+      prompt: card.kanji,
       kanji: card.kanji,
       furigana: card.furigana,
       arti: card.arti,
-      options: options.map((x) => ({ id: String(x.id), label: x[testType] })),
+      options: options.map((x) => ({ id: String(x.id), label: x.furigana })),
       correct: String(card.id),
     };
   });
-
-  const matching = matchingSamples.map((card, i) => {
+  const matching = matchCards.map((card, i) => {
     const token = crypto.randomBytes(8).toString("hex");
     return {
       key: `p${i + 1}`,
@@ -802,17 +903,16 @@ function makeQuestions(cards, other) {
       kanji: card.kanji,
       furigana: card.furigana,
       arti: card.arti,
-      label: card.furigana, // Fokus pada cara baca
+      label: card.furigana,
       token,
       correct: token,
-      round: Math.floor(i / Math.min(5, cards.length)),
+      round: Math.min(Math.floor(i / 5), rounds - 1),
     };
   });
-
-  const typing = typingSamples.map((card, i) => ({
+  const typing = typeCards.map((card, i) => ({
     key: `t${i + 1}`,
     cardId: card.id,
-    prompt: card.kanji, // Menguji kanji ke hiragana
+    prompt: card.kanji,
     kanji: card.kanji,
     furigana: card.furigana,
     arti: card.arti,
@@ -923,65 +1023,22 @@ app.get(
 
 
 async function finishQuiz(client, quiz) {
-  const answers = (
-    await client.query(
-      "SELECT card_id,stage,correct FROM quiz_answers WHERE attempt_id=$1",
-      [quiz.id],
-    )
-  ).rows;
+  // Jadwal SRS sudah dihitung saat rating (Anki style). Di sini hanya mencatat riwayat.
   const cards = (
     await client.query(
       "SELECT card_id,self_rating FROM study_session_cards WHERE session_id=$1",
       [quiz.session_id],
     )
   ).rows;
-  const durations = [1, 3, 7, 14, 30, 60, 120, 240];
+  const quality = { again: 1, hard: 3, good: 4, easy: 5 };
   for (const c of cards) {
-    const a = answers.filter((x) => x.card_id === c.card_id),
-      typing = a.filter((x) => x.stage === "typing");
-    const accuracy = a.length
-        ? a.filter((x) => x.correct).length / a.length
-        : 0,
-      typedOk = typing.every((x) => x.correct);
-    const strong = accuracy >= 0.8 && typedOk && c.self_rating === "good",
-      medium = accuracy >= 0.65 && typedOk && c.self_rating !== "again";
-    const quality = strong ? 5 : medium ? 3 : accuracy >= 0.5 ? 2 : 1;
-    const previous = await client.query(
-      "SELECT * FROM card_review_states WHERE card_id=$1 FOR UPDATE",
+    const st = await client.query(
+      "SELECT interval_days FROM card_review_states WHERE card_id=$1",
       [c.card_id],
-    );
-    const prev = previous.rows[0];
-    const witaDay = (t) =>
-      Math.floor((new Date(t).getTime() + 8 * 3600000) / 86400000);
-    const alreadyReviewedToday =
-      Boolean(prev?.last_review_at) &&
-      witaDay(prev.last_review_at) === witaDay(Date.now());
-    const level = strong
-      ? Math.min(8, (prev?.level || 0) + (alreadyReviewedToday ? 0 : 1))
-      : medium
-        ? Math.min(8, prev?.level || 0)
-        : 0;
-    const days = quality < 3 ? 1 : durations[Math.max(0, level - 1)] || 1;
-    const streak =
-      quality >= 3
-        ? (prev?.success_streak || 0) + (alreadyReviewedToday ? 0 : 1)
-        : 0;
-    const status =
-      level >= 3 && streak >= 3
-        ? "mastered"
-        : quality >= 3
-          ? "reviewing"
-          : "learning";
-    await client.query(
-      `INSERT INTO card_review_states(card_id,review_count,success_streak,level,interval_days,next_review_at,last_review_at,status)
- VALUES($1::bigint,1,$2::int,$3::int,$4::int,NOW()+make_interval(days => $4::int),NOW(),$5::text)
- ON CONFLICT(card_id) DO UPDATE SET review_count=card_review_states.review_count+1,success_streak=$2::int,level=$3::int,interval_days=$4::int,
- next_review_at=NOW()+make_interval(days => $4::int),last_review_at=NOW(),status=$5::text`,
-      [c.card_id, streak, level, days, status],
     );
     await client.query(
       "INSERT INTO review_history(card_id,session_id,quality,interval_days) VALUES($1::bigint,$2::uuid,$3::int,$4::int) ON CONFLICT DO NOTHING",
-      [c.card_id, quiz.session_id, quality, days],
+      [c.card_id, quiz.session_id, quality[c.self_rating] ?? 3, st.rows[0]?.interval_days || 0],
     );
   }
   await client.query(
@@ -1114,6 +1171,83 @@ app.get(
     });
   }),
 );
+// ===== NOTE BUNPOU =====
+function plainText(h) {
+  return String(h ?? "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function bunpouFields(body) {
+  const pola = str(body.pola, "Pola", 255);
+  const penjelasan = str(body.penjelasan, "Penjelasan", 200000);
+  if (!plainText(penjelasan)) httpError(400, "Penjelasan wajib diisi.");
+  return { pola, penjelasan };
+}
+const bunpouList = asyncRoute(async (req, res) => {
+  const q = String(req.query.q || "").slice(0, 100);
+  const dir = req.query.sort === "oldest" ? "ASC" : "DESC"; // whitelist
+  const r = await pool.query(
+    `SELECT id,pola,left(penjelasan,3000) AS excerpt,created_at,updated_at FROM bunpou_notes WHERE ($1::text='' OR pola ILIKE '%'||$1::text||'%') ORDER BY created_at ${dir},id ${dir} LIMIT 300`,
+    [q],
+  );
+  res.json({
+    data: r.rows.map((x) => {
+      const t = plainText(x.excerpt);
+      return { ...x, excerpt: t.length > 180 ? t.slice(0, 180) + "…" : t };
+    }),
+  });
+});
+const bunpouOne = asyncRoute(async (req, res) => {
+  const r = await pool.query("SELECT * FROM bunpou_notes WHERE id=$1", [number(req.params.id, "Note")]);
+  if (!r.rowCount) httpError(404, "Note tidak ditemukan.");
+  res.json(r.rows[0]);
+});
+app.get("/api/bunpou", bunpouList);
+app.get("/api/bunpou/:id", bunpouOne);
+app.get("/api/admin/bunpou", guarded, bunpouList);
+app.get("/api/admin/bunpou/:id", guarded, bunpouOne);
+app.post(
+  "/api/admin/bunpou",
+  protectedWrite,
+  asyncRoute(async (req, res) => {
+    const f = bunpouFields(req.body || {});
+    const r = await pool.query(
+      "INSERT INTO bunpou_notes(pola,penjelasan) VALUES($1,$2) RETURNING *",
+      [f.pola, f.penjelasan],
+    );
+    res.status(201).json(r.rows[0]);
+  }),
+);
+app.patch(
+  "/api/admin/bunpou/:id",
+  protectedWrite,
+  asyncRoute(async (req, res) => {
+    const f = bunpouFields(req.body || {});
+    const r = await pool.query(
+      "UPDATE bunpou_notes SET pola=$1,penjelasan=$2,updated_at=NOW() WHERE id=$3 RETURNING *",
+      [f.pola, f.penjelasan, number(req.params.id, "Note")],
+    );
+    if (!r.rowCount) httpError(404, "Note tidak ditemukan.");
+    res.json(r.rows[0]);
+  }),
+);
+app.delete(
+  "/api/admin/bunpou/:id",
+  protectedWrite,
+  asyncRoute(async (req, res) => {
+    const r = await pool.query("DELETE FROM bunpou_notes WHERE id=$1 RETURNING id", [number(req.params.id, "Note")]);
+    if (!r.rowCount) httpError(404, "Note tidak ditemukan.");
+    res.json({ ok: true });
+  }),
+);
+
 app.get(
   "/api/health",
   asyncRoute(async (req, res) => {
