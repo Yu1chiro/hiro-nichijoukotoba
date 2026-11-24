@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#EAF3FF" />
+  <title>API Access Sign In — Hiro Nichijou Kotoba</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { font-family: Inter, "Noto Sans JP", sans-serif; background: #f8fbff; color: #26364d; }
+    .jp { font-family: "Noto Sans JP", sans-serif; }
+    .soft { box-shadow: 0 14px 44px rgba(81, 122, 166, 0.085); }
+    .panel { border: 1px solid #e3ebf4; border-radius: 24px; background: #fff; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border-radius: 14px; padding: 11px 18px; font-weight: 700; transition: 0.18s; cursor: pointer; }
+    .btn:active { transform: scale(0.98); }
+    .btn-main { background: #537ebd; color: #fff; }
+    .btn-main:hover { background: #406ca9; }
+    .btn-lite { background: #eaf3ff; color: #385981; }
+    .btn-lite:hover { background: #dcebff; }
+    .btn-outline { border: 1px solid #d4e1f0; background: #fff; color: #385981; }
+    .btn-outline:hover { border-color: #89aed9; background: #f8fbff; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .inp { width: 100%; background: #fff; border: 1px solid #d8e4f2; border-radius: 14px; padding: 10px 14px; outline: none; font-size: 0.875rem; }
+    .inp:focus { border-color: #7da8dd; box-shadow: 0 0 0 3px #eaf3ff; }
+    .pin-box {
+      width: 46px;
+      height: 54px;
+      border-radius: 15px;
+      border: 1.5px solid #d5e2f2;
+      background: #f9fcff;
+      text-align: center;
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #26364d;
+      outline: none;
+      transition: 0.15s;
+    }
+    .pin-box:focus {
+      border-color: #537ebd;
+      background: #fff;
+      box-shadow: 0 0 0 4px #eaf3ff;
+    }
+    #toast { z-index: 99; transition: opacity 0.2s; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+  <!-- TOP HEADER -->
+  <header class="border-b border-[#E2EBF5] bg-white/85 backdrop-blur-md sticky top-0 z-30">
+    <div class="max-w-5xl mx-auto px-5 h-16 flex items-center justify-between gap-3">
+      <a href="/" class="flex items-center gap-3">
+        <img src="https://ik.imagekit.io/yuidev25/Hera?updatedAt=1781458984059" class="w-9 h-9 rounded-xl" alt="Logo" />
+        <div>
+          <strong class="block text-sm font-extrabold leading-tight">Hiro | Nichijou Kotoba</strong>
+          <span class="text-[11px] text-slate-400">JSON API Access Portal</span>
+        </div>
+      </a>
+      <div class="flex items-center gap-2">
+        <a href="/" class="btn btn-lite !py-2 !px-3.5 text-xs"><i class="fa-solid fa-house"></i> Home</a>
+        <button id="logoutBtn" onclick="logoutApi()" class="hidden btn btn-outline !py-2 !px-3.5 text-xs text-[#A65767] border-[#F0D5DA]">
+          <i class="fa-solid fa-right-from-bracket"></i> Keluar
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- VIEW 1: SIGN IN PIN 6 DIGIT -->
+  <main id="loginView" class="flex-1 flex items-center justify-center px-4 py-10">
+    <div class="panel soft w-full max-w-md p-7 sm:p-9 space-y-6">
+      <div class="text-center space-y-2">
+        <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#E7F2FF] to-[#F3E8F8] text-[#537EBD] grid place-items-center text-xl mx-auto border border-[#DCE8F5]">
+          <i class="fa-solid fa-key"></i>
+        </div>
+        <span class="inline-block text-[11px] font-bold uppercase tracking-widest text-[#6B91BA]">AI Assistant JSON Gate</span>
+        <h1 class="text-2xl font-extrabold text-[#26364D]">Sign In Akses API</h1>
+        <p class="text-xs sm:text-sm text-[#687C94] leading-relaxed">
+          Masukkan <b>PIN 6 digit</b> untuk membuka akses endpoint JSON <b>Kanji, Kotoba, dan Bunpou</b>.
+        </p>
+      </div>
+
+      <form id="pinForm" class="space-y-5" autocomplete="off">
+        <div>
+          <div class="flex items-center justify-between mb-2.5">
+            <label class="text-xs font-bold uppercase tracking-wider text-[#61758F]">PIN Akses (6 Digit)</label>
+            <button type="button" id="togglePinMask" class="text-xs font-semibold text-[#537EBD] hover:underline">
+              <i class="fa-regular fa-eye"></i> Tampilkan
+            </button>
+          </div>
+
+          <div id="pinBoxes" class="flex items-center justify-between gap-2">
+            <input type="password" inputmode="numeric" maxlength="1" pattern="[0-9]*" class="pin-box" aria-label="Digit 1" required />
+            <input type="password" inputmode="numeric" maxlength="1" pattern="[0-9]*" class="pin-box" aria-label="Digit 2" required />
+            <input type="password" inputmode="numeric" maxlength="1" pattern="[0-9]*" class="pin-box" aria-label="Digit 3" required />
+            <input type="password" inputmode="numeric" maxlength="1" pattern="[0-9]*" class="pin-box" aria-label="Digit 4" required />
+            <input type="password" inputmode="numeric" maxlength="1" pattern="[0-9]*" class="pin-box" aria-label="Digit 5" required />
+            <input type="password" inputmode="numeric" maxlength="1" pattern="[0-9]*" class="pin-box" aria-label="Digit 6" required />
+          </div>
+        </div>
+
+        <button id="submitPinBtn" type="submit" class="btn btn-main w-full !py-3.5 text-sm">
+          <i class="fa-solid fa-unlock-keyhole"></i> Masuk &amp; Buka JSON API
+        </button>
+      </form>
+
+      <div class="rounded-2xl bg-[#F4F8FD] border border-[#E3EDF8] p-3.5 text-xs text-[#61758F] flex items-start gap-2.5">
+        <i class="fa-solid fa-robot text-[#537EBD] mt-0.5"></i>
+        <span>Setelah masuk, Anda dapat langsung menyalin URL JSON yang rapi untuk dibaca oleh asisten AI Anda.</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- VIEW 2: PORTAL JSON API (SETELAH LOGIN) -->
+  <section id="portalView" class="hidden flex-1 max-w-5xl w-full mx-auto px-5 py-8 space-y-6">
+    <!-- Banner Status -->
+    <div class="rounded-[26px] p-6 sm:p-7 soft bg-gradient-to-br from-[#E7F2FF] via-[#F7FAFF] to-[#FCEEF6] border border-[#DCE8F5] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div class="space-y-1">
+        <span class="inline-flex items-center gap-1.5 text-xs font-bold text-[#307E67] bg-[#DFF4ED] px-3 py-1 rounded-full">
+          <i class="fa-solid fa-circle-check"></i> Sesi API Aktif
+        </span>
+        <h2 class="text-xl sm:text-2xl font-extrabold text-[#26364D] pt-1">Endpoint JSON Kanji, Kotoba &amp; Bunpou</h2>
+        <p class="text-xs sm:text-sm text-[#61758F]">
+          Semua endpoint di bawah ini menghasilkan output JSON terstruktur dan rapi yang siap diakses langsung oleh asisten AI.
+        </p>
+      </div>
+      <div class="bg-white/85 border border-[#DCE8F5] rounded-2xl px-4 py-3 text-xs space-y-1 shrink-0">
+        <div class="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Status Format</div>
+        <div class="font-bold text-[#26364D]"><i class="fa-solid fa-code text-[#537EBD] mr-1"></i> Pretty JSON (UTF-8)</div>
+      </div>
+    </div>
+
+    <!-- Filter Dinamis untuk URL Kotoba / Kanji -->
+    <div class="panel p-5 sm:p-6 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 class="font-bold text-base text-[#26364D]">1. JSON Kanji &amp; Kotoba</h3>
+          <p class="text-xs text-[#687C94]">Pilih cakupan data (Semua Deck, Deck spesifik, atau Day spesifik) untuk menghasilkan URL JSON.</p>
+        </div>
+        <span id="kotobaCountBadge" class="text-xs font-bold bg-[#EAF3FF] text-[#385981] px-3 py-1 rounded-full">Memuat...</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label for="filterDeck" class="block text-xs font-bold text-[#61758F] mb-1.5 uppercase tracking-wider">Filter Deck</label>
+          <select id="filterDeck" class="inp" onchange="onFilterDeckChange()">
+            <option value="">Semua Deck (Seluruh Kotoba)</option>
+          </select>
+        </div>
+        <div>
+          <label for="filterDay" class="block text-xs font-bold text-[#61758F] mb-1.5 uppercase tracking-wider">Filter Day</label>
+          <select id="filterDay" class="inp" onchange="updateGeneratedUrls()">
+            <option value="">Semua Day</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="bg-[#F6FAFF] border border-[#DCE8F5] rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <code id="urlKotoba" class="text-xs text-[#26364D] break-all font-mono"></code>
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" onclick="copyUrl('urlKotoba')" class="btn btn-main !py-2 !px-3.5 text-xs">
+            <i class="fa-regular fa-copy"></i> Salin URL
+          </button>
+          <a id="openKotoba" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline !py-2 !px-3.5 text-xs">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka JSON
+          </a>
+          <button type="button" onclick="previewEndpoint('urlKotoba', 'JSON Kanji & Kotoba')" class="btn btn-lite !py-2 !px-3.5 text-xs">
+            <i class="fa-solid fa-eye"></i> Preview
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Endpoint Note Bunpou -->
+    <div class="panel p-5 sm:p-6 space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 class="font-bold text-base text-[#26364D]">2. JSON Note Bunpou (Tata Bahasa)</h3>
+          <p class="text-xs text-[#687C94]">Berisi seluruh daftar pola kalimat beserta teks penjelasan bersih (<code class="text-[#537EBD]">penjelasan_text</code>) dan HTML.</p>
+        </div>
+        <span id="bunpouCountBadge" class="text-xs font-bold bg-[#DFF4ED] text-[#307E67] px-3 py-1 rounded-full">Memuat...</span>
+      </div>
+
+      <div class="bg-[#F6FAFF] border border-[#DCE8F5] rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <code id="urlBunpou" class="text-xs text-[#26364D] break-all font-mono"></code>
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" onclick="copyUrl('urlBunpou')" class="btn btn-main !py-2 !px-3.5 text-xs">
+            <i class="fa-regular fa-copy"></i> Salin URL
+          </button>
+          <a id="openBunpou" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline !py-2 !px-3.5 text-xs">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka JSON
+          </a>
+          <button type="button" onclick="previewEndpoint('urlBunpou', 'JSON Note Bunpou')" class="btn btn-lite !py-2 !px-3.5 text-xs">
+            <i class="fa-solid fa-eye"></i> Preview
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Endpoint Decks & Full All-in-One -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="panel p-5 space-y-3">
+        <div>
+          <h3 class="font-bold text-sm text-[#26364D]">3. JSON Struktur Deck &amp; Day</h3>
+          <p class="text-xs text-[#687C94]">Daftar semua deck beserta daftar Day dan jumlah itemnya.</p>
+        </div>
+        <div class="bg-[#F6FAFF] border border-[#DCE8F5] rounded-2xl p-3 space-y-2.5">
+          <code id="urlDecks" class="block text-[11px] text-[#26364D] break-all font-mono"></code>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" onclick="copyUrl('urlDecks')" class="btn btn-main !py-1.5 !px-3 text-xs"><i class="fa-regular fa-copy"></i> Salin</button>
+            <a id="openDecks" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline !py-1.5 !px-3 text-xs"><i class="fa-solid fa-arrow-up-right-from-square"></i> Buka</a>
+            <button type="button" onclick="previewEndpoint('urlDecks', 'JSON Struktur Deck & Day')" class="btn btn-lite !py-1.5 !px-3 text-xs"><i class="fa-solid fa-eye"></i> Preview</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel p-5 space-y-3">
+        <div>
+          <h3 class="font-bold text-sm text-[#26364D]">4. JSON Lengkap (All-in-One)</h3>
+          <p class="text-xs text-[#687C94]">Gabungan Deck, seluruh Kanji/Kotoba, dan seluruh Note Bunpou dalam 1 JSON.</p>
+        </div>
+        <div class="bg-[#F6FAFF] border border-[#DCE8F5] rounded-2xl p-3 space-y-2.5">
+          <code id="urlAll" class="block text-[11px] text-[#26364D] break-all font-mono"></code>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" onclick="copyUrl('urlAll')" class="btn btn-main !py-1.5 !px-3 text-xs"><i class="fa-regular fa-copy"></i> Salin</button>
+            <a id="openAll" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline !py-1.5 !px-3 text-xs"><i class="fa-solid fa-arrow-up-right-from-square"></i> Buka</a>
+            <button type="button" onclick="previewEndpoint('urlAll', 'JSON Lengkap (All-in-One)')" class="btn btn-lite !py-1.5 !px-3 text-xs"><i class="fa-solid fa-eye"></i> Preview</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live JSON Output Viewer -->
+    <div id="previewBox" class="hidden panel p-5 sm:p-6 space-y-3">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-[#369374]"></span>
+          <h4 id="previewTitle" class="font-bold text-sm text-[#26364D]">Preview JSON</h4>
+        </div>
+        <button type="button" onclick="copyPreviewJson()" class="btn btn-lite !py-1.5 !px-3 text-xs">
+          <i class="fa-regular fa-copy"></i> Salin Hasil JSON
+        </button>
+      </div>
+      <pre id="previewContent" class="bg-[#1E2B3C] text-[#E6F0FA] rounded-2xl p-4 text-xs font-mono overflow-x-auto max-h-[420px] leading-relaxed"></pre>
+    </div>
+  </section>
+
+  <footer class="text-center text-xs text-slate-400 py-6">
+    Hiro | Nichijou Kotoba &bull; API Access Gateway
+  </footer>
+
+  <div id="toast" role="status" class="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-2xl bg-[#26364D] text-white text-xs sm:text-sm px-5 py-3 opacity-0 pointer-events-none">Notifikasi</div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let apiToken = "";
+    let decksCache = [];
+    let pinVisible = false;
+
+    function notify(msg) {
+      $("toast").textContent = msg;
+      $("toast").style.opacity = "1";
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => { $("toast").style.opacity = "0"; }, 3200);
+    }
+
+    function escapeHtml(x) {
+      return String(x ?? "")
+        .split("&").join("&amp;")
+        .split("<").join("&lt;")
+        .split(">").join("&gt;")
+        .split('"').join("&quot;")
+        .split("'").join("&#39;");
+    }
+
+    async function api(url, options = {}) {
+      const res = await fetch(url, {
+        ...options,
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Permintaan gagal.");
+      return data;
+    }
+
+    // 6-DIGIT PIN INPUT LOGIC
+    const boxes = Array.from(document.querySelectorAll("#pinBoxes .pin-box"));
+
+    boxes.forEach((box, idx) => {
+      box.addEventListener("input", (e) => {
+        const clean = e.target.value.replace(/\D/g, "");
+        e.target.value = clean.slice(-1);
+        if (e.target.value && idx < boxes.length - 1) {
+          boxes[idx + 1].focus();
+        }
+        if (getPinValue().length === 6) {
+          $("pinForm").requestSubmit();
+        }
+      });
+
+      box.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace" && !e.target.value && idx > 0) {
+          boxes[idx - 1].focus();
+        }
+      });
+
+      box.addEventListener("paste", (e) => {
+        e.preventDefault();
+        const pasted = (e.clipboardData || window.clipboardData).getData("text").replace(/\D/g, "").slice(0, 6);
+        pasted.split("").forEach((digit, i) => {
+          if (boxes[i]) boxes[i].value = digit;
+        });
+        const focusIdx = Math.min(pasted.length, boxes.length - 1);
+        boxes[focusIdx].focus();
+        if (pasted.length === 6) {
+          $("pinForm").requestSubmit();
+        }
+      });
+    });
+
+    $("togglePinMask").addEventListener("click", () => {
+      pinVisible = !pinVisible;
+      boxes.forEach((b) => { b.type = pinVisible ? "text" : "password"; });
+      $("togglePinMask").innerHTML = pinVisible
+        ? '<i class="fa-regular fa-eye-slash"></i> Sembunyikan'
+        : '<i class="fa-regular fa-eye"></i> Tampilkan';
+    });
+
+    function getPinValue() {
+      return boxes.map((b) => b.value).join("");
+    }
+
+    function clearPinBoxes() {
+      boxes.forEach((b) => { b.value = ""; });
+      if (boxes[0]) boxes[0].focus();
+    }
+
+    $("pinForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const pin = getPinValue();
+      if (pin.length !== 6) {
+        notify("Masukkan lengkap 6 digit PIN.");
+        return;
+      }
+      const btn = $("submitPinBtn");
+      btn.disabled = true;
+      try {
+        const res = await api("/api/ai/login", {
+          method: "POST",
+          body: JSON.stringify({ pin })
+        });
+        apiToken = res.token;
+        notify("Login API berhasil.");
+        await openPortal();
+      } catch (err) {
+        notify(err.message);
+        clearPinBoxes();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    async function logoutApi() {
+      try {
+        await api("/api/ai/logout", { method: "POST", body: "{}" });
+      } catch {}
+      apiToken = "";
+      $("portalView").classList.add("hidden");
+      $("logoutBtn").classList.add("hidden");
+      $("loginView").classList.remove("hidden");
+      clearPinBoxes();
+      notify("Sesi API ditutup.");
+    }
+
+    async function openPortal() {
+      $("loginView").classList.add("hidden");
+      $("portalView").classList.remove("hidden");
+      $("logoutBtn").classList.remove("hidden");
+
+      try {
+        const [decksRes, bunpouRes] = await Promise.all([
+          api(`/api/ai/decks?token=${encodeURIComponent(apiToken)}`),
+          api(`/api/ai/bunpou?token=${encodeURIComponent(apiToken)}`)
+        ]);
+        decksCache = decksRes.data || [];
+        const totalKotoba = decksCache.reduce((acc, d) => acc + (d.card_count || 0), 0);
+        $("kotobaCountBadge").textContent = `${totalKotoba} Total Kotoba`;
+        $("bunpouCountBadge").textContent = `${bunpouRes.total ?? (bunpouRes.data || []).length} Note Bunpou`;
+
+        $("filterDeck").innerHTML =
+          `<option value="">Semua Deck (${totalKotoba} item)</option>` +
+          decksCache.map((d) => `<option value="${d.id}">${escapeHtml(d.name)} (${d.card_count} item)</option>`).join("");
+      } catch (e) {
+        notify(e.message);
+      }
+
+      updateGeneratedUrls();
+    }
+
+    function onFilterDeckChange() {
+      const deckId = $("filterDeck").value;
+      const deck = decksCache.find((d) => String(d.id) === String(deckId));
+      if (!deck) {
+        $("filterDay").innerHTML = '<option value="">Semua Day</option>';
+      } else {
+        const days = deck.days || [];
+        $("filterDay").innerHTML =
+          `<option value="">Semua Day (${deck.card_count} item)</option>` +
+          days.map((day) => `<option value="${day.id}">Day ${day.day_number}${day.title ? " | " + escapeHtml(day.title) : ""} (${day.card_count} item)</option>`).join("");
+      }
+      updateGeneratedUrls();
+    }
+
+    function updateGeneratedUrls() {
+      const base = window.location.origin;
+      const tok = encodeURIComponent(apiToken);
+      const deckId = $("filterDeck").value;
+      const dayId = $("filterDay").value;
+
+      let kotobaUrl = `${base}/api/ai/kotoba?token=${tok}`;
+      if (deckId) kotobaUrl += `&deckId=${encodeURIComponent(deckId)}`;
+      if (dayId) kotobaUrl += `&dayId=${encodeURIComponent(dayId)}`;
+
+      const bunpouUrl = `${base}/api/ai/bunpou?token=${tok}`;
+      const decksUrl = `${base}/api/ai/decks?token=${tok}`;
+      const allUrl = `${base}/api/ai/all?token=${tok}`;
+
+      $("urlKotoba").textContent = kotobaUrl;
+      $("openKotoba").href = kotobaUrl;
+
+      $("urlBunpou").textContent = bunpouUrl;
+      $("openBunpou").href = bunpouUrl;
+
+      $("urlDecks").textContent = decksUrl;
+      $("openDecks").href = decksUrl;
+
+      $("urlAll").textContent = allUrl;
+      $("openAll").href = allUrl;
+    }
+
+    async function copyUrl(elementId) {
+      const text = $(elementId).textContent.trim();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        notify("URL JSON berhasil disalin!");
+      } catch {
+        notify("Gagal menyalin URL.");
+      }
+    }
+
+    async function previewEndpoint(elementId, title) {
+      const url = $(elementId).textContent.trim();
+      if (!url) return;
+      $("previewBox").classList.remove("hidden");
+      $("previewTitle").textContent = `Preview: ${title}`;
+      $("previewContent").textContent = "Memuat JSON...";
+      try {
+        const res = await fetch(url);
+        const text = await res.text();
+        $("previewContent").textContent = text;
+        $("previewBox").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (e) {
+        $("previewContent").textContent = "Gagal memuat JSON: " + e.message;
+      }
+    }
+
+    async function copyPreviewJson() {
+      const text = $("previewContent").textContent;
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        notify("Hasil JSON berhasil disalin!");
+      } catch {
+        notify("Gagal menyalin JSON.");
+      }
+    }
+
+    // Cek sesi aktif saat halaman dibuka
+    (async function checkSession() {
+      try {
+        const me = await api("/api/ai/me");
+        if (me.authenticated && me.token) {
+          apiToken = me.token;
+          await openPortal();
+          return;
+        }
+      } catch {}
+      if (boxes[0]) boxes[0].focus();
+    })();
+  </script>
+</body>
+</html>

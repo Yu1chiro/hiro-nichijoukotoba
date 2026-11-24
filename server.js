@@ -12,6 +12,7 @@ const PORT = Number(process.env.PORT || 3000);
 const ROOT = path.join(__dirname, "public");
 const SECRET = process.env.JWT_SECRET;
 const PIN = process.env.ADMIN_PIN;
+const API_PIN = process.env.API_PIN || "081236";
 if (!SECRET || SECRET.length < 32 || !PIN || PIN.length < 6) {
   console.error(
     "Isi JWT_SECRET (>=32 karakter) dan ADMIN_PIN (>=6 karakter) di .env",
@@ -106,8 +107,23 @@ function isPin(candidate) {
   const b = crypto.createHash("sha256").update(PIN).digest();
   return crypto.timingSafeEqual(a, b);
 }
+function isApiPin(candidate) {
+  if (typeof candidate !== "string") return false;
+  const a = crypto.createHash("sha256").update(candidate).digest();
+  const b = crypto.createHash("sha256").update(API_PIN).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+function getStaticApiToken() {
+  return crypto
+    .createHmac("sha256", SECRET)
+    .update(`nichijou_ai_api:${API_PIN}`)
+    .digest("hex")
+    .slice(0, 32);
+}
 const failed = new Map();
+const apiFailed = new Map();
 const COOKIE = "nichijou_session";
+const AI_COOKIE = "nichijou_ai_session";
 function auth(req, res, next) {
   try {
     const data = jwt.verify(req.cookies[COOKIE] || "", SECRET, {
@@ -121,6 +137,33 @@ function auth(req, res, next) {
       return res.status(401).json({ error: "Sesi berakhir. Silakan login." });
     return res.redirect("/login");
   }
+}
+function aiAuth(req, res, next) {
+  const expectedToken = getStaticApiToken();
+  const bearer = (req.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  const queryToken = String(req.query.token || "").trim();
+  const providedToken = queryToken || bearer;
+
+  if (providedToken) {
+    const a = crypto.createHash("sha256").update(providedToken).digest();
+    const b = crypto.createHash("sha256").update(expectedToken).digest();
+    if (crypto.timingSafeEqual(a, b)) return next();
+  }
+
+  try {
+    const data = jwt.verify(req.cookies[AI_COOKIE] || "", SECRET, {
+      algorithms: ["HS256"],
+    });
+    if (data.role === "ai_api") return next();
+  } catch {}
+
+  return res
+    .status(401)
+    .json({ error: "Akses API memerlukan login PIN 6 digit di /api-login." });
+}
+function sendPrettyJson(res, payload) {
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  return res.send(JSON.stringify(payload, null, 2));
 }
 function csrf(req, res, next) {
   if (!req.auth || req.get("x-csrf-token") !== req.auth.csrf)
@@ -139,6 +182,9 @@ app.get(["/index.html"], (req, res) => res.redirect("/"));
 app.get(["/login", "/login.html"], (req, res) =>
   res.sendFile(path.join(ROOT, "login.html")),
 );
+app.get(["/api-login", "/api-login.html"], (req, res) =>
+  res.sendFile(path.join(ROOT, "api-login.html")),
+);
 app.get(["/quiz", "/quiz.html"], (req, res) =>
   res.sendFile(path.join(ROOT, "quiz.html")),
 );
@@ -149,6 +195,215 @@ app.get(["/read-bunpou", "/read-bunpou.html"], (req, res) =>
   res.sendFile(path.join(ROOT, "read-bunpou.html")),
 );
 app.get("/favicon.ico", (req, res) => res.status(204).end());
+
+// ===== AUTH KHUSUS AI JSON API (PIN 6 DIGIT) =====
+app.post("/api/ai/login", (req, res) => {
+  const ip = req.ip;
+  const now = Date.now();
+  const current = apiFailed.get(ip) || { count: 0, until: now + 15 * 60 * 1000 };
+  if (now > current.until) {
+    current.count = 0;
+    current.until = now + 15 * 60 * 1000;
+  }
+  if (current.count >= 10)
+    return res
+      .status(429)
+      .json({ error: "Terlalu banyak percobaan PIN. Tunggu 15 menit." });
+  const pin = String(req.body?.pin || "").trim();
+  if (!/^\d{6}$/.test(pin) || !isApiPin(pin)) {
+    current.count++;
+    apiFailed.set(ip, current);
+    return res.status(401).json({ error: "PIN 6 digit salah." });
+  }
+  apiFailed.delete(ip);
+  const sessionJwt = jwt.sign({ role: "ai_api" }, SECRET, {
+    algorithm: "HS256",
+    expiresIn: "7d",
+  });
+  res.cookie(AI_COOKIE, sessionJwt, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: "/",
+  });
+  res.json({ ok: true, token: getStaticApiToken() });
+});
+app.get("/api/ai/me", aiAuth, (req, res) =>
+  res.json({ authenticated: true, token: getStaticApiToken() }),
+);
+app.post("/api/ai/logout", (req, res) => {
+  res.clearCookie(AI_COOKIE, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+  });
+  res.json({ ok: true });
+});
+
+app.get(
+  "/api/ai/decks",
+  aiAuth,
+  asyncRoute(async (req, res) => {
+    const decksRes = await pool.query(
+      `SELECT d.id, d.name, d.description,
+        (SELECT COUNT(*)::int FROM flashcards f WHERE f.deck_id=d.id AND f.archived=false) AS card_count,
+        (SELECT COUNT(*)::int FROM study_days sd WHERE sd.deck_id=d.id) AS day_count
+       FROM decks d WHERE d.archived=false ORDER BY d.created_at DESC, d.id DESC`,
+    );
+    const daysRes = await pool.query(
+      `SELECT sd.id, sd.deck_id, sd.day_number, sd.title,
+        (SELECT COUNT(*)::int FROM study_day_cards sdc JOIN flashcards f ON f.id=sdc.card_id WHERE sdc.day_id=sd.id AND f.archived=false) AS card_count
+       FROM study_days sd ORDER BY sd.day_number ASC`,
+    );
+    const daysByDeck = new Map();
+    for (const day of daysRes.rows) {
+      const k = String(day.deck_id);
+      if (!daysByDeck.has(k)) daysByDeck.set(k, []);
+      daysByDeck.get(k).push({
+        id: day.id,
+        day_number: day.day_number,
+        title: day.title,
+        card_count: day.card_count,
+      });
+    }
+    const data = decksRes.rows.map((d) => ({
+      ...d,
+      days: daysByDeck.get(String(d.id)) || [],
+    }));
+    return sendPrettyJson(res, {
+      ok: true,
+      total_decks: data.length,
+      data,
+    });
+  }),
+);
+
+app.get(
+  "/api/ai/kotoba",
+  aiAuth,
+  asyncRoute(async (req, res) => {
+    const deckId = req.query.deckId ? number(req.query.deckId, "Deck") : null;
+    const dayId = req.query.dayId ? number(req.query.dayId, "Day") : null;
+    const q = String(req.query.q || "").slice(0, 100).trim();
+    const params = [];
+    let join = "JOIN decks d ON d.id = f.deck_id";
+    let where = "f.archived = false AND d.archived = false";
+
+    if (deckId) {
+      params.push(deckId);
+      where += ` AND f.deck_id = $${params.length}`;
+    }
+    if (dayId) {
+      params.push(dayId);
+      join += " JOIN study_day_cards sdc ON sdc.card_id = f.id";
+      where += ` AND sdc.day_id = $${params.length}`;
+    }
+    if (q) {
+      params.push(`%${q}%`);
+      where += ` AND (f.kanji ILIKE $${params.length} OR f.furigana ILIKE $${params.length} OR f.arti ILIKE $${params.length})`;
+    }
+
+    const r = await pool.query(
+      `SELECT f.id, f.deck_id, d.name AS deck_name, f.kanji, f.furigana, f.arti,
+        f.example_sentence, f.sentence_translation, f.notes,
+        f.source_title, f.source_url, f.audio_url, f.timestamp_sec,
+        COALESCE(
+          (SELECT json_agg(json_build_object('day_id', sd.id, 'day_number', sd.day_number, 'title', sd.title) ORDER BY sd.day_number)
+           FROM study_day_cards sdc2 JOIN study_days sd ON sd.id = sdc2.day_id WHERE sdc2.card_id = f.id),
+          '[]'::json
+        ) AS days
+       FROM flashcards f ${join}
+       WHERE ${where}
+       ORDER BY ${dayId ? "sdc.position ASC, " : "f.deck_id ASC, "} f.id ASC`,
+      params,
+    );
+
+    return sendPrettyJson(res, {
+      ok: true,
+      filter: {
+        deckId: deckId || "all",
+        dayId: dayId || "all",
+        query: q || null,
+      },
+      total: r.rows.length,
+      data: r.rows,
+    });
+  }),
+);
+
+app.get(
+  "/api/ai/bunpou",
+  aiAuth,
+  asyncRoute(async (req, res) => {
+    const q = String(req.query.q || "").slice(0, 100).trim();
+    const r = await pool.query(
+      `SELECT id, pola, penjelasan, created_at, updated_at
+       FROM bunpou_notes
+       WHERE ($1::text = '' OR pola ILIKE '%' || $1::text || '%')
+       ORDER BY id ASC`,
+      [q],
+    );
+    const data = r.rows.map((row) => ({
+      id: row.id,
+      pola: row.pola,
+      penjelasan_text: plainText(row.penjelasan),
+      penjelasan_html: row.penjelasan,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+    return sendPrettyJson(res, {
+      ok: true,
+      total: data.length,
+      data,
+    });
+  }),
+);
+
+app.get(
+  "/api/ai/all",
+  aiAuth,
+  asyncRoute(async (req, res) => {
+    const [decksRes, kotobaRes, bunpouRes] = await Promise.all([
+      pool.query(
+        `SELECT d.id, d.name, d.description,
+          (SELECT COUNT(*)::int FROM flashcards f WHERE f.deck_id=d.id AND f.archived=false) AS card_count
+         FROM decks d WHERE d.archived=false ORDER BY d.id ASC`,
+      ),
+      pool.query(
+        `SELECT f.id, f.deck_id, d.name AS deck_name, f.kanji, f.furigana, f.arti,
+          f.example_sentence, f.sentence_translation, f.notes, f.source_title, f.source_url, f.audio_url
+         FROM flashcards f JOIN decks d ON d.id = f.deck_id
+         WHERE f.archived = false AND d.archived = false
+         ORDER BY f.deck_id ASC, f.id ASC`,
+      ),
+      pool.query(
+        `SELECT id, pola, penjelasan, created_at, updated_at FROM bunpou_notes ORDER BY id ASC`,
+      ),
+    ]);
+
+    const bunpou = bunpouRes.rows.map((row) => ({
+      id: row.id,
+      pola: row.pola,
+      penjelasan_text: plainText(row.penjelasan),
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+
+    return sendPrettyJson(res, {
+      ok: true,
+      summary: {
+        total_decks: decksRes.rows.length,
+        total_kotoba: kotobaRes.rows.length,
+        total_bunpou: bunpou.length,
+      },
+      decks: decksRes.rows,
+      kotoba: kotobaRes.rows,
+      bunpou,
+    });
+  }),
+);
 
 app.post("/api/auth/login", (req, res) => {
   const ip = req.ip;
