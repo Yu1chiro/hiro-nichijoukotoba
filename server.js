@@ -270,8 +270,9 @@ app.get(
   asyncRoute(async (req, res) => {
     const deckId = number(req.query.deckId, "Deck"),
       dayId = req.query.dayId ? number(req.query.dayId, "Day") : null;
+    const fetchAll = req.query.all === "true" || req.query.all === "1";
     const page = Math.max(1, Math.min(100000, Number(req.query.page) || 1)),
-      limit = Math.max(1, Math.min(50, Number(req.query.limit) || 10));
+      limit = Math.max(1, Math.min(5000, Number(req.query.limit) || 10));
     const q = String(req.query.q || "").slice(0, 100);
     let join = "",
       params = [deckId],
@@ -289,12 +290,20 @@ app.get(
       `SELECT COUNT(*)::int AS total FROM flashcards f ${join} WHERE ${where}`,
       params,
     );
+    const total = count.rows[0].total;
+    if (fetchAll) {
+      const r = await pool.query(
+        `SELECT f.* FROM flashcards f ${join} WHERE ${where} ORDER BY ${dayId ? "sdc.position," : ""} f.id`,
+        params,
+      );
+      return res.json({ data: r.rows, total, page: 1, limit: total });
+    }
     params.push(limit, (page - 1) * limit);
     const r = await pool.query(
       `SELECT f.* FROM flashcards f ${join} WHERE ${where} ORDER BY ${dayId ? "sdc.position," : ""} f.id LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
-    res.json({ data: r.rows, total: count.rows[0].total, page, limit });
+    res.json({ data: r.rows, total, page, limit });
   }),
 );
 app.get(

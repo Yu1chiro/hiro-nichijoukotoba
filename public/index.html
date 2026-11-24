@@ -172,7 +172,10 @@
         </div>
         
         <div class="panel p-5 bg-gradient-to-r from-white to-[#F2F8FF] space-y-4">
-          <p class="text-sm">Filter materi bacaan berdasarkan Deck dan Day agar lebih terstruktur dan fokus.</p>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-sm">Filter materi bacaan berdasarkan Deck dan Day agar lebih terstruktur dan fokus.</p>
+            <span id="shadowCountInfo" class="text-xs font-bold text-[#537EBD] bg-[#EAF3FF] px-3 py-1 rounded-full"></span>
+          </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-[#61758F] mb-2 uppercase tracking-wider">Pilih Deck</label>
@@ -447,7 +450,7 @@
     
     async function initShadowFilters() {
       if (!$("shadowDeck").innerHTML && state.decks.length > 0) {
-        $("shadowDeck").innerHTML = state.decks.map((d) => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join("");
+        $("shadowDeck").innerHTML = state.decks.map((d) => `<option value="${d.id}">${escapeHtml(d.name)} (${d.card_count} item)</option>`).join("");
         if (state.deckId) $("shadowDeck").value = state.deckId;
       }
       await changeShadowDeck();
@@ -458,7 +461,11 @@
       if (!deckId) return;
       try {
         const r = await api(`/api/decks/${deckId}/days`);
-        $("shadowDay").innerHTML = '<option value="">Semua Day</option>' + r.data.map((d) => `<option value="${d.id}">Day ${d.day_number} | ${escapeHtml(d.title)}</option>`).join("");
+        const deckObj = state.decks.find((d) => String(d.id) === String(deckId));
+        const totalDeck = deckObj ? deckObj.card_count : "";
+        $("shadowDay").innerHTML =
+          `<option value="">Semua Day${totalDeck !== "" ? ` (${totalDeck} item)` : ""}</option>` +
+          r.data.map((d) => `<option value="${d.id}">Day ${d.day_number} | ${escapeHtml(d.title)} (${d.card_count} item)</option>`).join("");
         await loadShadowCards();
       } catch (e) { notify(e.message); }
     }
@@ -469,17 +476,21 @@
       
       if (!deckId) { 
         $("shadowList").innerHTML = '<div class="col-span-full panel p-8 text-center text-slate-500">Pilih deck terlebih dahulu.</div>'; 
+        if ($("shadowCountInfo")) $("shadowCountInfo").textContent = "";
         return; 
       }
       
       $("shadowList").innerHTML = '<div class="col-span-full text-center py-12 text-slate-400"><i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-[#A2B8CF]"></i><br>Memuat data Kotoba Read...</div>';
       
       try {
-        let url = `/api/flashcards?deckId=${deckId}&limit=100`;
-        if (dayId) url += `&dayId=${dayId}`;
+        let url = `/api/flashcards?deckId=${encodeURIComponent(deckId)}&all=true`;
+        if (dayId) url += `&dayId=${encodeURIComponent(dayId)}`;
 
         const r = await api(url);
-        const cards = r.data.filter((c) => c.source_url || c.audio_url || c.example_sentence);
+        const cards = r.data || [];
+        if ($("shadowCountInfo")) {
+          $("shadowCountInfo").textContent = `Menampilkan ${cards.length} dari ${r.total ?? cards.length} item`;
+        }
 
         $("shadowList").innerHTML = cards.length ? cards.map((c) => `
           <div class="panel p-6 shadow-sm hover:shadow-md transition bg-white space-y-2">
@@ -516,7 +527,7 @@
               ${c.audio_url ? `<div class="audio-box space-y-2"><audio controls preload="none" class="w-full h-9 rounded-full bg-slate-50" src="${escapeHtml(c.audio_url)}"></audio><div class="flex gap-2"><button class="pill" onclick="audioSpeed(this,0.75)">0.75x</button><button class="pill active" onclick="audioSpeed(this,1)">1x</button></div></div>` : ""}
               ${c.source_url ? `<a href="${escapeHtml(c.source_url)}" target="_blank" rel="noopener noreferrer" class="btn btn-lite text-sm mt-3 w-full"><i class="fa-solid fa-link"></i> Buka Sumber URL</a>` : ""}
             </div>
-          </div>`).join("") : '<div class="col-span-full panel p-10 text-center text-slate-500 bg-white">Belum ada data Kotoba Read (memiliki kalimat/audio) untuk filter ini.</div>';
+          </div>`).join("") : '<div class="col-span-full panel p-10 text-center text-slate-500 bg-white">Belum ada data Kotoba Read untuk filter ini.</div>';
       } catch (e) { notify(e.message); }
     }
     
